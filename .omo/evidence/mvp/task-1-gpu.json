@@ -1,0 +1,38 @@
+{
+  "gpu_ready": false,
+  "primary_reason_code": "nvml_driver_library_mismatch",
+  "reason_codes": [
+    "nvml_driver_library_mismatch",
+    "gpu_device_not_found",
+    "gpu_name_mismatch",
+    "gpu_process_query_unavailable",
+    "insufficient_free_vram",
+    "torch_cuda_unavailable",
+    "cuda_tensor_smoke_failed"
+  ],
+  "disk_free_bytes": 535434797056,
+  "cuda_visible_devices": "0",
+  "device_index": 0,
+  "device_name": null,
+  "nvml_status": "driver_library_mismatch",
+  "nvml_diagnostic": "Failed to initialize NVML: Driver/library version mismatch NVML library version: 580.173",
+  "foreign_compute_process_count": null,
+  "free_vram_bytes": null,
+  "torch_cuda_available": false,
+  "tensor_smoke_passed": false,
+  "model_cache": {
+    "repo_id": "FacebookAI/xlm-roberta-base",
+    "cache_root": "/home/kyu/.cache/huggingface/hub",
+    "cache_root_source": "default",
+    "exists": true,
+    "is_directory": true,
+    "writable": true,
+    "free_bytes": 535434797056,
+    "repo_cache_exists": false,
+    "model_snapshot_cached": false,
+    "reason_codes": [
+      "model_repo_cache_missing",
+      "model_snapshot_missing"
+    ]
+  }
+}
