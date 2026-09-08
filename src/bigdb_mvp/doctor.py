@@ -8,7 +8,7 @@ from typing import ClassVar, assert_never
 
 from pydantic import BaseModel, ConfigDict
 
-from bigdb_mvp.cache_probe import ModelCacheReport  # noqa: TC001
+from bigdb_mvp.cache_probe import ModelCacheReport
 from bigdb_mvp.config import DoctorSettings
 
 

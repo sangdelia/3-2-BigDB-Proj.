@@ -5,7 +5,12 @@ description = "Supervised bilingual harmful-language detector MVP"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "httpx2[brotli,http2,zstd]>=2.12.0",
+    "numpy>=2.4.6",
+    "polars>=1.44.1",
+    "pyarrow>=25.0.1",
     "pydantic>=2.12,<3",
+    "pyyaml>=6.0.3",
     "typer>=0.21,<1",
 ]
 
@@ -25,6 +30,7 @@ build-backend = "hatchling.build"
 
 [tool.basedpyright]
 typeCheckingMode = "all"
+stubPath = "src/bigdb_mvp/data/stubs"
 pythonVersion = "3.11"
 pythonPlatform = "Linux"
 include = ["src", "tests"]
@@ -51,6 +57,9 @@ ignore = ["COM812", "CPY001", "D203", "D213", "FBT001", "FBT002", "FIX002", "ISC
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.ruff.format]
 quote-style = "double"
