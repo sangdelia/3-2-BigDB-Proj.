@@ -1,0 +1,111 @@
+schema_version: 1
+as_of: "2026-09-08"
+counts_are_pre_deduplication: true
+
+mvp:
+  seed: 42
+  max_rows_per_language: 5000
+  max_rows_per_label: 2500
+  split_percentages:
+    train: 80
+    calibration: 10
+    test: 10
+  civil_comments:
+    repository: google/civil_comments
+    revision: f2970eb3a55777454c94069077cc8d9b5866312d
+    split: train
+    asset: data/train-00000-of-00002.parquet
+    asset_bytes: 193527147
+    asset_sha256: c20f01c3aecbdd942886cacb0ee67e995df33bc712a622fde75927ed3d6ccefe
+    required_schema:
+      text: string
+      toxicity: float
+    max_scanned_rows: 100000
+    license: CC0-1.0
+
+summary:
+  supervised_candidate_rows: 371907
+  verified_open_license_rows: 310217
+  license_review_rows: 61690
+  current_local_labeled_rows: 67061
+  current_local_all_rows: 68718
+  thesis_eval_candidates_after_exact_dedupe: 6777
+  thesis_selected_eval_rows: 900
+  optional_beep_unlabeled_rows: 2033893
+
+sources:
+  nikl:
+    name: NIKL AI말평 2025
+    source: licensed_local_input
+    splits:
+      train_labeled: 2109
+      dev_labeled: 410
+      test_unlabeled: 1657
+    supervised_candidate_rows: 2519
+    current_local_rows: 4176
+    license_status: restricted_local_review_required
+    redistribution: false
+
+  unsmile:
+    name: Korean UnSmile
+    source: https://github.com/smilegate-ai/korean_unsmile_dataset
+    revision: 6ef17c27881aa44b0d74e9fe29e8d031b40ba07f
+    splits:
+      train: 15005
+      valid: 3737
+    supervised_candidate_rows: 18742
+    current_local_rows: 18742
+    license_status: not_declared_in_checked_repository_metadata
+    redistribution: false
+
+  kold:
+    name: KOLD
+    source: https://huggingface.co/datasets/nayohan/KOLD
+    revision: 2e7aa9d2e202db21eb15c3ab10baff60cf7b8a98
+    splits:
+      published: 40429
+    supervised_candidate_rows: 40429
+    current_local_rows: 40429
+    license_status: not_declared_in_checked_dataset_card
+    redistribution: false
+
+  kmhas:
+    name: K-MHaS
+    source: https://huggingface.co/datasets/jeanlee/kmhas_korean_hate_speech
+    splits:
+      train: 78977
+      validation: 8776
+      test: 21939
+    supervised_candidate_rows: 109692
+    current_local_rows: 2100
+    license: CC-BY-SA-4.0
+    license_status: verified_from_dataset_card
+    redistribution: attribution_and_share_alike_required
+
+  khaters:
+    name: K-HATERS
+    source: https://huggingface.co/datasets/humane-lab/K-HATERS
+    splits:
+      train: 172158
+      validation: 10000
+      test: 10000
+    supervised_candidate_rows: 192158
+    current_local_rows: 2100
+    license: CC-BY-4.0
+    license_status: verified_from_dataset_card
+    redistribution: attribution_required
+    caution: Reacquire and lowercase original labels before mapping.
+
+  beep:
+    name: BEEP Korean Hate Speech
+    source: https://github.com/kocohub/korean-hate-speech
+    splits:
+      train_labeled: 7896
+      dev_labeled: 471
+      test_label_hidden: 974
+      unlabeled: 2033893
+    supervised_candidate_rows: 8367
+    current_local_rows: 1171
+    license: CC-BY-SA-4.0
+    license_status: verified_from_repository_metadata
+    redistribution: attribution_and_share_alike_required

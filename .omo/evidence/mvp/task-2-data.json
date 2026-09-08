@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "seed": 42,
+  "sources": [
+    {
+      "source": "nikl",
+      "revision": "73d9558e06a057f11d2910dfc13b57e287128c6b3aeba649b28a560c79fd5b8f",
+      "license": "restricted_local_review_required",
+      "input_sha256": "73d9558e06a057f11d2910dfc13b57e287128c6b3aeba649b28a560c79fd5b8f",
+      "asset": "",
+      "staging_sha256": "49eb657d1aea6ee5f7d8665cd63af16c4c3f40133ee3239943962cc44e848355",
+      "scanned": 2109,
+      "accepted": 2109,
+      "excluded": 0,
+      "exclusions": []
+    },
+    {
+      "source": "beep",
+      "revision": "de9d0f29ac2c86fe77aa29abc8be21991bc86b3669dcc4347d0cd4146c949e3b",
+      "license": "CC-BY-SA-4.0",
+      "input_sha256": "de9d0f29ac2c86fe77aa29abc8be21991bc86b3669dcc4347d0cd4146c949e3b",
+      "asset": "",
+      "staging_sha256": "eb904af73200db1c6e5150ea6836268e060709fd36e1b1714c8da92235019cd7",
+      "scanned": 1171,
+      "accepted": 700,
+      "excluded": 471,
+      "exclusions": [
+        {
+          "reason": "non_train_split",
+          "count": 471
+        }
+      ]
+    },
+    {
+      "source": "kmhas",
+      "revision": "2b1d064ed30fefc1e469e897a0ac8dae7c46f4318d540f6313f1d3a1792d26ed",
+      "license": "CC-BY-SA-4.0",
+      "input_sha256": "2b1d064ed30fefc1e469e897a0ac8dae7c46f4318d540f6313f1d3a1792d26ed",
+      "asset": "",
+      "staging_sha256": "71e88713f13745a643b92c498546fb938f061756871599e589d40e41d2f75982",
+      "scanned": 2100,
+      "accepted": 700,
+      "excluded": 1400,
+      "exclusions": [
+        {
+          "reason": "non_train_split",
+          "count": 1400
+        }
+      ]
+    },
+    {
+      "source": "khaters",
+      "revision": "2f1f5cd54744e8bfb943711fe9edc552b5e4ffd576263381549d05ab83e4086f",
+      "license": "CC-BY-4.0",
+      "input_sha256": "2f1f5cd54744e8bfb943711fe9edc552b5e4ffd576263381549d05ab83e4086f",
+      "asset": "",
+      "staging_sha256": "5793061d85d8f9c894d876ea68272ced889be3e84b78045c55df5a993fd930c1",
+      "scanned": 2100,
+      "accepted": 700,
+      "excluded": 1400,
+      "exclusions": [
+        {
+          "reason": "non_train_split",
+          "count": 1400
+        }
+      ]
+    },
+    {
+      "source": "civil_comments",
+      "revision": "f2970eb3a55777454c94069077cc8d9b5866312d",
+      "license": "CC0-1.0",
+      "input_sha256": "c20f01c3aecbdd942886cacb0ee67e995df33bc712a622fde75927ed3d6ccefe",
+      "asset": "https://huggingface.co/datasets/google/civil_comments/resolve/f2970eb3a55777454c94069077cc8d9b5866312d/data/train-00000-of-00002.parquet",
+      "staging_sha256": "dccbe0b469433e47b5d8d871809de248f7c40c4836b184ac5c35236673030211",
+      "scanned": 37765,
+      "accepted": 5000,
+      "excluded": 0,
+      "exclusions": []
+    }
+  ],
+  "status": "complete",
+  "dataset_file": "data/processed/bilingual_supervised.parquet",
+  "dataset_sha256": "050d658592dfe006005bbb085901f9a34a9b930851f183b029377dc56171854c",
+  "logical_digest": "645a93eda457a5bcb79d68ab6b19c1a9386a17ae23e7b794b9a8a50578d97bb3",
+  "record_count": 9030,
+  "counts": [
+    {
+      "language": "en",
+      "label": "clean",
+      "split": "calibration",
+      "source": "civil_comments",
+      "count": 250
+    },
+    {
+      "language": "en",
+      "label": "clean",
+      "split": "test",
+      "source": "civil_comments",
+      "count": 252
+    },
+    {
+      "language": "en",
+      "label": "clean",
+      "split": "train",
+      "source": "civil_comments",
+      "count": 1990
+    },
+    {
+      "language": "en",
+      "label": "harmful",
+      "split": "calibration",
+      "source": "civil_comments",
+      "count": 245
+    },
+    {
+      "language": "en",
+      "label": "harmful",
+      "split": "test",
+      "source": "civil_comments",
+      "count": 243
+    },
+    {
+      "language": "en",
+      "label": "harmful",
+      "split": "train",
+      "source": "civil_comments",
+      "count": 1989
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "calibration",
+      "source": "beep",
+      "count": 22
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "calibration",
+      "source": "khaters",
+      "count": 29
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "calibration",
+      "source": "kmhas",
+      "count": 57
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "calibration",
+      "source": "nikl",
+      "count": 71
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "test",
+      "source": "beep",
+      "count": 28
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "test",
+      "source": "khaters",
+      "count": 21
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "test",
+      "source": "kmhas",
+      "count": 34
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "test",
+      "source": "nikl",
+      "count": 56
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "train",
+      "source": "beep",
+      "count": 226
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "train",
+      "source": "khaters",
+      "count": 147
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "train",
+      "source": "kmhas",
+      "count": 306
+    },
+    {
+      "language": "ko",
+      "label": "clean",
+      "split": "train",
+      "source": "nikl",
+      "count": 564
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "calibration",
+      "source": "beep",
+      "count": 32
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "calibration",
+      "source": "khaters",
+      "count": 38
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "calibration",
+      "source": "kmhas",
+      "count": 24
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "calibration",
+      "source": "nikl",
+      "count": 117
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "test",
+      "source": "beep",
+      "count": 32
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "test",
+      "source": "khaters",
+      "count": 59
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "test",
+      "source": "kmhas",
+      "count": 35
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "test",
+      "source": "nikl",
+      "count": 125
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "train",
+      "source": "beep",
+      "count": 337
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "train",
+      "source": "khaters",
+      "count": 378
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "train",
+      "source": "kmhas",
+      "count": 223
+    },
+    {
+      "language": "ko",
+      "label": "harmful",
+      "split": "train",
+      "source": "nikl",
+      "count": 1100
+    }
+  ],
+  "exact_duplicates_removed": 32,
+  "sampled_non_train_count": 0,
+  "split_intersections": [
+    {
+      "left": "train",
+      "right": "calibration",
+      "count": 0
+    },
+    {
+      "left": "train",
+      "right": "test",
+      "count": 0
+    },
+    {
+      "left": "calibration",
+      "right": "test",
+      "count": 0
+    }
+  ],
+  "raw_text_fields": 0,
+  "thesis_path_references": 0,
+  "verification": {
+    "fresh_download_exit_code": 0,
+    "verified_cache_reuse_exit_code": 0,
+    "cached_parquet_reingest_exit_code": 0,
+    "partial_range_resume_exit_code": 0,
+    "parquet_subprocess_exit_code": 0,
+    "previous_hf_stream_exit_code": 134,
+    "repeated_dataset_sha256_equal": true,
+    "repeated_logical_digest_equal": true,
+    "active_background_threads_after_scan": 0,
+    "asset_bytes": 193527147,
+    "asset_sha256": "c20f01c3aecbdd942886cacb0ee67e995df33bc712a622fde75927ed3d6ccefe",
+    "asset_schema": {"text": "string", "toxicity": "float"},
+    "asset_rows": 902437,
+    "asset_row_groups": 903,
+    "adversarial_checks": {
+      "malformed_rows_excluded": true,
+      "prompt_like_text_inert": true,
+      "checksum_drift_rejected": true,
+      "incomplete_cache_rejected": true,
+      "bounded_bytes_enforced": true,
+      "partial_download_resumable": true,
+      "traceback_root_error_preserved": true
+    },
+    "approved_task1_fallout": "removed obsolete doctor.py TC001 noqa"
+  }
+}

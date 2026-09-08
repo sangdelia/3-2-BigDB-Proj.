@@ -1,0 +1,7 @@
+COMMAND: uv run pytest tests/test_data.py -q
+EXIT_CODE: 1
+RESULT: 2 failed, 27 passed in 0.80s
+FAILURES:
+- test_civil_download_reuses_only_exact_pinned_cache
+- test_civil_download_rejects_revision_or_checksum_drift
+OBSERVED_CAUSE: DownloadSpec rejected expected_sha256 before network access.

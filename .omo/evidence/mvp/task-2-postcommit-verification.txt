@@ -1,0 +1,46 @@
+HOOK_RUN_ID: subagent-stop:20
+VERIFIED_COMMIT: ab02867da57f1b08212d14d0336f397d99d004d6
+VERIFIED_SUBJECT: feat(mvp): build bilingual supervised sample
+VERIFICATION_DATE: 2026-09-08
+
+SCENARIO: independently re-run Task 2 acceptance surfaces after commit
+COMMAND: uv run bigdb-mvp data audit --json
+EXIT_CODE: 0
+OBSERVED: valid=true record_count=9030 split_intersections=0 sampled_non_train_count=0 raw_text_fields=0 thesis_path_references=0
+
+COMMAND: uv run ruff check .
+EXIT_CODE: 0
+OBSERVED: All checks passed
+
+COMMAND: uv run ruff format --check .
+EXIT_CODE: 0
+OBSERVED: 51 files already formatted
+
+COMMAND: uv run basedpyright
+EXIT_CODE: 0
+OBSERVED: 0 errors, 0 warnings, 0 notes
+
+COMMAND: uv run pytest tests/test_data.py tests/test_civil_data.py tests/test_doctor.py tests/test_project_layout.py -q
+EXIT_CODE: 0
+OBSERVED: 47 passed in 1.22s
+
+COMMAND: uv run python check-no-excuse-rules.py src/bigdb_mvp/data src/bigdb_mvp/cli.py src/bigdb_mvp/doctor.py tests/test_data.py tests/test_civil_data.py
+EXIT_CODE: 0
+OBSERVED: no violations in 18 files
+
+COMMAND: git diff --check
+EXIT_CODE: 0
+OBSERVED: no whitespace errors
+
+COMMAND: prohibited tracked-data and runtime-temp assertions
+EXIT_CODE: 0
+OBSERVED: tracked raw/processed/model assets=0; .tmp/.part/.bak=0; Task2 temp dirs=0; debug journal=absent; HF datasets streaming imports=0
+
+COMMAND: sha256sum pinned shard processed dataset
+EXIT_CODE: 0
+OBSERVED_CIVIL_SHA256: c20f01c3aecbdd942886cacb0ee67e995df33bc712a622fde75927ed3d6ccefe
+OBSERVED_DATASET_SHA256: 050d658592dfe006005bbb085901f9a34a9b930851f183b029377dc56171854c
+OBSERVED_LOGICAL_DIGEST: 645a93eda457a5bcb79d68ab6b19c1a9386a17ae23e7b794b9a8a50578d97bb3
+OBSERVED_CIVIL_SOURCE: revision=f2970eb3a55777454c94069077cc8d9b5866312d license=CC0-1.0 scanned=37765 accepted=5000 excluded=0
+
+JUDGMENT: PASS

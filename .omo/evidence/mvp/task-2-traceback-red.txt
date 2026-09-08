@@ -1,0 +1,4 @@
+Scenario: typed data error crosses the Typer/contextlib boundary
+Command: uv run pytest tests/test_data.py::test_typed_download_error_preserves_python_traceback_protocol -q
+Exit: 1
+Observed: assigning error.__traceback__ raised TypeError because the Exception subclass was a frozen slots dataclass.

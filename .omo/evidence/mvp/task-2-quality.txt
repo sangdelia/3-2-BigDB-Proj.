@@ -1,0 +1,19 @@
+COMMANDS:
+- uv sync --frozen
+- uv run ruff check .
+- uv run ruff format --check .
+- uv run basedpyright
+- uv run pytest tests/test_data.py tests/test_civil_data.py tests/test_doctor.py tests/test_project_layout.py -q
+- uv run python check-no-excuse-rules.py src/bigdb_mvp/data src/bigdb_mvp/cli.py src/bigdb_mvp/doctor.py tests/test_data.py tests/test_civil_data.py
+- git diff --check
+RESULTS:
+- sync_exit_code: 0
+- ruff_check: All checks passed
+- ruff_format: 51 files already formatted
+- basedpyright: 0 errors, 0 warnings, 0 notes
+- pytest: 47 passed in 1.16s
+- no_excuse: no violations in 18 files
+- max_pure_loc_per_file: 250_or_less
+- raw_or_model_assets_tracked: 0
+- raw_text_fields_in_evidence: 0
+- approved_task1_regression: tests/test_doctor.py passed after obsolete TC001 noqa removal
