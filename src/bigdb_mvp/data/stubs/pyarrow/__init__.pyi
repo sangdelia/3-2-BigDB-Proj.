@@ -23,7 +23,8 @@ class Field:
 class DataType: ...
 
 @final
-class Table: ...
+class Table:
+    def to_pylist(self) -> list[dict[str, str]]: ...
 
 @final
 class RecordBatch:
