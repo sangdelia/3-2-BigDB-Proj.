@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from bigdb_mvp.baseline import train_baseline
 from bigdb_mvp.config import DoctorSettings
 from bigdb_mvp.data.audit import audit_dataset
 from bigdb_mvp.data.builder import build_dataset
@@ -15,6 +16,8 @@ from bigdb_mvp.gpu_probe import collect_live_snapshot
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 data_app = typer.Typer(add_completion=False, no_args_is_help=True)
 app.add_typer(data_app, name="data")
+train_app = typer.Typer(add_completion=False, no_args_is_help=True)
+app.add_typer(train_app, name="train")
 
 
 @app.callback()
@@ -58,6 +61,14 @@ def data_audit(
         typer.echo(f"valid={report.valid} rows={report.record_count}")
     if not report.valid:
         raise typer.Exit(code=1)
+
+
+@train_app.command("baseline")
+def train_baseline_command(
+    seed: Annotated[int, typer.Option("--seed", min=0)] = 42,
+) -> None:
+    """Fit and evaluate the digest-bound CPU character TF-IDF baseline."""
+    typer.echo(train_baseline(seed=seed).model_dump_json())
 
 
 def main() -> None:

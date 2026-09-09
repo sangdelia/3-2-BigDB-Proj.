@@ -1,0 +1,29 @@
+{
+  "status": "verified",
+  "command": "uv run bigdb-mvp train baseline --seed 42",
+  "dataset_sha256": "050d658592dfe006005bbb085901f9a34a9b930851f183b029377dc56171854c",
+  "logical_digest": "645a93eda457a5bcb79d68ab6b19c1a9386a17ae23e7b794b9a8a50578d97bb3",
+  "model_sha256": "4e4c92872be538ba71d59ca4e47d02d1eb0b4400ee6e4819bc123a1a26c16d2d",
+  "threshold": 0.54,
+  "score_standard_deviation": 0.15796108537184064,
+  "test_metrics": {
+    "overall": {"f1": 0.7721123829344432, "brier": 0.18094280592292952},
+    "ko": {"f1": 0.8036697247706424, "brier": 0.2080101081760947},
+    "en": {"f1": 0.7307692307692308, "brier": 0.15961705263255757}
+  },
+  "prediction_distribution": {"clean": 418, "harmful": 467},
+  "verification": {
+    "pytest": "50 passed",
+    "ruff": "check and format --check passed",
+    "basedpyright": "0 errors, 0 warnings",
+    "manual_inference": {
+      "ko_harmful": {"score": 0.580844, "threshold_passed": true, "positive_ngrams": 5},
+      "en_harmful": {"score": 0.578798, "threshold_passed": true, "positive_ngrams": 8}
+    }
+  },
+  "post_commit_verification": {
+    "verified_commit_before_amend": "fdbb2bb929db1e614cf7fd7f749b10ad8991e0ef",
+    "command": "uv run pytest tests/test_baseline.py -q && uv run bigdb-mvp train baseline --seed 42 && uv run ruff check . && uv run ruff format --check . && uv run basedpyright",
+    "result": "3 baseline tests passed; live train completed; ruff passed; basedpyright 0 errors/0 warnings; KO and EN synthetic harmful probes exceeded frozen threshold"
+  }
+}

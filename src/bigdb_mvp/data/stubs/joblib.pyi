@@ -1,0 +1,6 @@
+from pathlib import Path
+
+from bigdb_mvp.baseline import BaselineModel
+
+def dump(value: BaselineModel, filename: Path) -> list[str]: ...
+def load(filename: Path) -> BaselineModel: ...
