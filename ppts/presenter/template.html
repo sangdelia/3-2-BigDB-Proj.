@@ -110,6 +110,15 @@ td .d-ok { color: var(--ok); font-weight: 600; }
 .card h3 { margin: 0; font-size: .98rem; }
 .card p { margin: 0; font-size: .9rem; color: var(--muted); }
 .tag { font: 600 .72rem var(--mono); color: var(--accent); }
+.edited { font: 600 .7rem var(--mono); color: var(--warm); background: var(--warm-soft); border-radius: 4px; padding: 1px 6px; }
+.ed-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ed-bar button { padding: 5px 12px; font-size: .85rem; }
+.ed-box { display: grid; gap: 8px; }
+.ed-box textarea { font: 1.05rem/1.8 var(--body); color: var(--ink); background: var(--surface); border: 2px solid var(--accent); border-radius: 10px; padding: 14px 16px; min-height: 9em; resize: vertical; width: 100%; box-sizing: border-box; }
+.ed-meta { font: 500 .8rem var(--mono); color: var(--muted); }
+.ed-meta .over { color: var(--warm); }
+.ed-note { font-size: .8rem; color: var(--muted); }
+.ed-note.err { color: var(--warm); }
 
 /* Q&A */
 .qa-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
@@ -206,7 +215,8 @@ details[open] summary { border-bottom: 1px solid var(--line); }
           <h2 id="stitle">표지</h2>
           <span class="target" id="starget">목표 9초</span>
         </div>
-        <p class="say" id="say"></p>
+        <p class="say" id="say" data-k=""></p>
+        <div class="ed-slot" id="sayed"></div>
         <div class="slide-clock">
           <span class="hint">이 장</span><span class="t" id="slidet">0:00</span>
           <span class="status" id="slidestatus">—</span>
@@ -261,6 +271,7 @@ details[open] summary { border-bottom: 1px solid var(--line); }
   <section id="tab-script" data-view="script" hidden>
     <h2>대본 전체</h2>
     <p class="lead" id="scriptsum"></p>
+    <p class="ed-note" id="ednote">대본 수정 기능을 불러오는 중…</p>
     <ol class="full" id="fullscript"></ol>
     <h2 style="margin-top:28px">부록 설명 (질문이 나오면)</h2>
     <ol class="full" id="fullapx"></ol>
@@ -355,6 +366,10 @@ const CONCEPTS = [
 const $ = (s) => document.querySelector(s);
 const fmt = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
 const M = DATA.main, TOTAL = M.reduce((a, m) => a + m.sec, 0);
+M.forEach((m) => { m.key = "m" + m.label; m.orig = m.script; });
+DATA.appendix.forEach((a) => { a.key = "a" + a.label; a.orig = a.script; });
+const RATE = M.reduce((a, m) => a + m.orig.length, 0) / TOTAL;  /* 계획 말하기 속도 (자/초) */
+const ED = { db: null, saved: {}, open: null };
 
 /* ---------- tabs ---------- */
 function show(tab) {
@@ -385,8 +400,8 @@ function render() {
   const m = M[st.idx];
   $("#slideimg").src = m.img; $("#slideimg").alt = `${m.label} ${m.title} 슬라이드`;
   $("#label").textContent = m.label; $("#stitle").textContent = m.title;
-  $("#starget").textContent = `목표 ${m.sec}초 · ${m.chars}자`;
-  $("#say").textContent = m.script;
+  $("#starget").innerHTML = `목표 ${m.sec}초 · ${m.script.length}자` + (m.script !== m.orig ? ' <span class="edited">수정됨</span>' : "");
+  $("#say").textContent = m.script; $("#say").dataset.k = m.key; mountEditor($("#sayed"), m, $("#say"));
   $("#pos").textContent = `${st.idx + 1} / ${M.length}`;
   $("#plancum").textContent = fmt(m.cum);
   $("#prev").disabled = st.idx === 0;
@@ -444,7 +459,8 @@ document.addEventListener("keydown", (e) => {
 const apx = $("#apx");
 DATA.appendix.forEach((a) => {
   const c = document.createElement("article"); c.className = "card"; c.id = "apx-" + a.label;
-  c.innerHTML = `<img src="${a.img}" alt="${a.label} ${a.title} 슬라이드" loading="lazy"><div class="body"><span class="tag">${a.label}</span><h3>${a.title}</h3><p>${a.script}</p></div>`;
+  c.innerHTML = `<img src="${a.img}" alt="${a.label} ${a.title} 슬라이드" loading="lazy"><div class="body"><span class="tag">${a.label}</span><h3>${a.title}</h3><p data-k="${a.key}"></p></div>`;
+  c.querySelector("p").textContent = a.script;
   apx.appendChild(c);
 });
 render();
@@ -499,21 +515,105 @@ $("#bigbtn").addEventListener("click", (e) => {
 try { if (localStorage.getItem("bigslide") === "1") $("#bigbtn").click(); } catch (_) {}
 
 /* ---------- full script ---------- */
-const chars = M.reduce((a, m) => a + m.chars, 0);
-$("#scriptsum").textContent = `본문 12장 · 합계 ${fmt(TOTAL)} (${TOTAL}초) · ${chars.toLocaleString()}자 · 초당 약 ${(chars / TOTAL).toFixed(1)}자. 슬라이드에 적힌 내용만 씁니다.`;
+function scriptSum() {
+  const chars = M.reduce((a, m) => a + m.script.length, 0);
+  const est = Math.round(chars / RATE);
+  const n = [...M, ...DATA.appendix].filter((x) => x.script !== x.orig).length;
+  $("#scriptsum").textContent = `본문 12장 · 계획 ${fmt(TOTAL)} · 현재 ${chars.toLocaleString()}자 ≈ ${fmt(est)} (원래 속도 초당 ${RATE.toFixed(1)}자 기준)` + (n ? ` · 수정된 장 ${n}개` : "") + ". 슬라이드에 적힌 내용만 씁니다.";
+}
+scriptSum();
 const fs = $("#fullscript");
 M.forEach((m, i) => {
   const li = document.createElement("li");
-  li.innerHTML = `<img src="${m.img}" alt="${m.label} 슬라이드" loading="lazy"><div><div class="fh"><span class="tag">${m.label}</span><b>${m.title}</b><span class="target">${m.sec}초 · 누적 ${fmt(m.cum)}</span></div><p>${m.script}</p></div>`;
+  li.innerHTML = `<img src="${m.img}" alt="${m.label} 슬라이드" loading="lazy"><div><div class="fh"><span class="tag">${m.label}</span><b>${m.title}</b><span class="target">${m.sec}초 · 누적 ${fmt(m.cum)}</span><span data-badge="${m.key}"></span></div><p data-k="${m.key}"></p><div class="ed-slot"></div></div>`;
+  li.querySelector("p").textContent = m.script; mountEditor(li.querySelector(".ed-slot"), m, li.querySelector("p"));
   li.querySelector("img").addEventListener("click", () => { location.hash = "practice"; go(i); });
   fs.appendChild(li);
 });
 const fa = $("#fullapx");
 DATA.appendix.forEach((a) => {
   const li = document.createElement("li");
-  li.innerHTML = `<img src="${a.img}" alt="${a.label} 슬라이드" loading="lazy"><div><div class="fh"><span class="tag">${a.label}</span><b>${a.title}</b></div><p>${a.script}</p></div>`;
+  li.innerHTML = `<img src="${a.img}" alt="${a.label} 슬라이드" loading="lazy"><div><div class="fh"><span class="tag">${a.label}</span><b>${a.title}</b><span data-badge="${a.key}"></span></div><p data-k="${a.key}"></p><div class="ed-slot"></div></div>`;
+  li.querySelector("p").textContent = a.script; mountEditor(li.querySelector(".ed-slot"), a, li.querySelector("p"));
   fa.appendChild(li);
 });
+
+/* ---------- script editing (shared db: scripts/<key>) ---------- */
+function estSec(s) { return Math.round(s.length / RATE); }
+function mountEditor(slot, item, p) {
+  slot.replaceChildren();
+  if (!ED.db) return;
+  if (ED.open === slot) return openEditor(slot, item, p);
+  const bar = document.createElement("div"); bar.className = "ed-bar";
+  const b = document.createElement("button"); b.type = "button"; b.textContent = "대본 수정";
+  b.addEventListener("click", () => { ED.open = slot; openEditor(slot, item, p); });
+  bar.appendChild(b);
+  if (item.script !== item.orig) {
+    const r = document.createElement("button"); r.type = "button"; r.textContent = "원래 대본으로";
+    r.addEventListener("click", () => saveScript(item, item.orig, bar));
+    bar.appendChild(r);
+  }
+  slot.appendChild(bar);
+}
+function openEditor(slot, item, p) {
+  slot.replaceChildren(); p.hidden = true;
+  const box = document.createElement("div"); box.className = "ed-box";
+  box.innerHTML = `<textarea aria-label="${item.label} 대본" maxlength="2000"></textarea><div class="ed-meta"></div><div class="ed-bar"><button type="button" class="primary" data-a="save">저장</button><button type="button" data-a="cancel">취소</button><span class="ed-note"></span></div>`;
+  const ta = box.querySelector("textarea"), meta = box.querySelector(".ed-meta");
+  ta.value = item.script;
+  const upd = () => {
+    const s = estSec(ta.value);
+    meta.innerHTML = item.sec ? `${ta.value.length}자 · 예상 약 ${s}초 / 목표 ${item.sec}초` + (s > item.sec ? ` <span class="over">(${s - item.sec}초 초과)</span>` : "") : `${ta.value.length}자 · 예상 약 ${s}초`;
+  };
+  ta.addEventListener("input", upd); upd();
+  const close = () => { ED.open = null; p.hidden = false; mountEditor(slot, item, p); };
+  box.querySelector('[data-a="cancel"]').addEventListener("click", close);
+  box.querySelector('[data-a="save"]').addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    const ok = await saveScript(item, ta.value.trim(), box.querySelector(".ed-note"));
+    if (ok) close(); else e.currentTarget.disabled = false;
+  });
+  slot.appendChild(box); ta.focus();
+}
+async function saveScript(item, text, noteEl) {
+  const note = noteEl.classList?.contains("ed-note") ? noteEl : (noteEl.querySelector(".ed-note") || noteEl.appendChild(Object.assign(document.createElement("span"), { className: "ed-note" })));
+  note.className = "ed-note"; note.textContent = "저장 중…";
+  try {
+    const ref = ED.db.collection("scripts").doc(item.key);
+    if (text === item.orig || !text) await ref.delete();
+    else await ref.set({ text, label: item.label, title: item.title, updatedAt: Date.now() });
+    applyScript(item, text && text !== item.orig ? text : item.orig);
+    return true;
+  } catch (err) {
+    note.className = "ed-note err";
+    note.textContent = `저장하지 못했습니다${err && err.code ? " (" + err.code + ")" : ""}. 수정 권한이 없거나 연결이 불안정할 수 있습니다.`;
+    return false;
+  }
+}
+function applyScript(item, text) {
+  if (item.script === text) return;
+  item.script = text; if (item.chars !== undefined) item.chars = text.length;
+  document.querySelectorAll(`p[data-k="${item.key}"]`).forEach((p) => (p.textContent = text));
+  document.querySelectorAll(`[data-badge="${item.key}"]`).forEach((b) => (b.innerHTML = text !== item.orig ? '<span class="edited">수정됨</span>' : ""));
+  document.querySelectorAll(".ed-slot").forEach((slot) => { if (slot !== ED.open) { const p = slot.previousElementSibling; const it = [...M, ...DATA.appendix].find((x) => x.key === p?.dataset.k); if (it) mountEditor(slot, it, p); } });
+  scriptSum(); { const m = M[st.idx]; $("#starget").innerHTML = `목표 ${m.sec}초 · ${m.script.length}자` + (m.script !== m.orig ? ' <span class="edited">수정됨</span>' : ""); }
+}
+(async () => {
+  const note = $("#ednote");
+  let db = null;
+  try { db = await claude.use("db"); } catch (_) {}
+  if (!db) { note.textContent = "대본 수정은 claude.ai에 로그인해 이 페이지를 열면 사용할 수 있습니다. 지금은 읽기 전용입니다."; return; }
+  ED.db = db;
+  note.textContent = "각 장의 ‘대본 수정’으로 고칠 수 있습니다. 저장한 내용은 이 페이지를 여는 모든 사람에게 보이고, PPT 발표자 노트에는 요청하면 반영합니다.";
+  const ALL = [...M, ...DATA.appendix];
+  const timer = setTimeout(() => (note.textContent = "저장된 수정 내용을 아직 불러오지 못했습니다. 연결이 느릴 수 있습니다."), 10000);
+  db.collection("scripts").onSnapshot((snap) => {
+    if (!snap.metadata?.fromCache) clearTimeout(timer);
+    const got = {}; snap.docs.forEach((d) => { const v = d.data(); if (v && typeof v.text === "string") got[d.id] = v.text; });
+    ALL.forEach((it) => applyScript(it, got[it.key] ?? it.orig));
+  }, () => { clearTimeout(timer); note.className = "ed-note err"; note.textContent = "수정 내용 저장소에 연결하지 못했습니다. 원래 대본을 보여 줍니다."; });
+  render(); document.querySelectorAll(".ed-slot").forEach((slot) => { const p = slot.previousElementSibling; const it = ALL.find((x) => x.key === p?.dataset.k); if (it) mountEditor(slot, it, p); });
+})();
 
 /* ---------- terms (glossary table) ---------- */
 const cl = $("#clist");
