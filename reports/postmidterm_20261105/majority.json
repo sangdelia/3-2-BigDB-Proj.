@@ -1,0 +1,13 @@
+{
+  "dataset_sha256": "364854dcf55d310a6965324ab5b91929165cc4a4da0fe44b08eda19c06979d4a",
+  "test_count": 31349,
+  "test_harmful": 19750,
+  "majority_all_harmful": {
+    "accuracy": 0.6300041468627389,
+    "harmful_f1": 0.7730092565412239,
+    "clean_f1": 0.0,
+    "macro_f1": 0.38650462827061194,
+    "harmful_recall": 1.0,
+    "false_positive_rate": 1.0
+  }
+}
