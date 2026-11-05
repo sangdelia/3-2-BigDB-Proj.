@@ -9,7 +9,12 @@ Model B targets: K-HATERS rows also carry the original-Ratings grades used by mo
 (b_hate = max of 7 group ratings, b_abuse = max of all 13, b_swear = swear; 0/1/2) and the
 row's split in model B's cleaned dataset. K-HATERS rows absent from B's cleaned data
 (19 of 168,727) are not sampled. Other sources leave these columns empty.
+Model A's K-HATERS rows all belong to B's train split, so B validation/test rows are added
+from B's cleaned data in B's split ratio (172,097 : 9,997 : 9,997), stratified by b_abuse.
+These rows are not in model A's data: split is empty and label is derived from b_abuse
+(0 → clean, >=1 → harmful), which matches model A's K-HATERS labels on every sampled row.
 """
+import random
 import csv, io, sys
 from pathlib import Path
 import polars as pl
@@ -31,6 +36,16 @@ df = (pl.read_parquet("data/curated/korean_v2/corpus.parquet", columns=["text", 
 shuffled = df.sample(fraction=1.0, shuffle=True, seed=20261105)
 groups = {k: g for k, g in shuffled.group_by(["source", "label"], maintain_order=True)}
 share = {k: g.height / df.height for k, g in groups.items()}
+n_b = [len(x) for x in ds.splits]
+bextra = {}
+for name, rows in zip(("validation", "test"), ds.splits[1:]):
+    by = {}
+    for r in rows:
+        by.setdefault(r.grade("abuse"), []).append(r)
+    rng = random.Random(20261105)
+    for g in sorted(by):
+        rng.shuffle(by[g])
+    bextra[name] = by
 
 def render(n):
     buf = io.StringIO(); w = csv.writer(buf, lineterminator="\n")
@@ -39,8 +54,18 @@ def render(n):
     rows = []
     for (src, lab), g in sorted(groups.items()):
         rows += [(r["text"], r["key"], lab, src, r["split"]) for r in g.head(max(1, round(n * share[(src, lab)]))).iter_rows(named=True)]
-    for i, (t, key, lab, src, sp) in enumerate(rows, 1):
+    n_kh = sum(1 for x in rows if x[3] == "khaters")
+    for name, by in bextra.items():
+        want = round(n_kh * n_b[1 if name == "validation" else 2] / n_b[0])
+        tot = sum(len(v) for v in by.values())
+        for g, v in sorted(by.items()):
+            for r in v[: max(1, round(want * len(v) / tot))]:
+                t = " ".join(r.text.split())
+                rows.append((t, text_key(r.text), "harmful" if g else "clean", "khaters", "", name))
+    for i, row in enumerate(rows, 1):
+        t, key, lab, src, sp = row[:5]
         grades, bsplit = B[key] if src == "khaters" else (["", "", ""], "")
+        assert len(row) == 5 or bsplit == row[5]
         w.writerow([f"s{i:05d}", t, lab, int(lab == "harmful"), src, sp, len(t), *grades, bsplit])
     return buf.getvalue(), len(rows)
 
