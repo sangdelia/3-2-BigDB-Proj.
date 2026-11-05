@@ -52,9 +52,9 @@ Hadoop은 원문을 뺀 출처·라벨·길이 데이터를 HDFS에 적재하고
 
 ### 09. HDFS–Spark 연동 파이프라인
 
-피드백(속성 정리를 위한 것이 Spark·Hadoop 전처리)에 맞춰 두 도구를 HDFS로 연결했다. 원천을 HDFS에 올리고, Spark가 HDFS에서 읽어 정제한 결과를 다시 HDFS에 쓰며, MapReduce는 그 결과를 읽어 집계한다. 스크립트는 저장소 bigdata/에 있고, 실행 검증 결과는 재실행 후 반영한다.
+피드백(속성 정리를 위한 것이 Spark·Hadoop 전처리)에 맞춰 두 도구를 HDFS로 연결했다. 원천 316,571행(64.4MB Parquet)을 HDFS Bronze에 올리고, Spark가 HDFS에서 읽어 정제한 311,661행을 Silver로 다시 HDFS에 쓰며, Spark SQL과 MapReduce가 각각 Silver를 읽어 27개 키로 집계한다(MapReduce: 1,558,305건 → 27개 키). 2026-11-05 실행에서 HDFS 해시, 행 수, Spark 출력 키 해시, Spark 집계, MapReduce 집계(Python·Spark 양쪽과 비교) 6개 검사가 모두 일치했다. Spark 작업 20.7초(시작 3.5초 별도), MapReduce 7초. 단일 서버 실행이라 속도·확장성 주장은 하지 않는다.
 
-> 근거 파일(/home/kyu/BigDB_Proj/): bigdata/README.md (worktree 브랜치 sangdelia/blobfish) · bigdata/run_pipeline.sh · bigdata/spark_pipeline.py · bigdata/verify_pipeline.py
+> 근거 파일(/home/kyu/BigDB_Proj/): reports/bigdata_pipeline/verification.json · spark.json · mapreduce.json · mapreduce.log · hdfs-listing.txt · 스크립트 bigdata/run_pipeline.sh (worktree 브랜치 sangdelia/blobfish)
 
 ### 10. 모델 구성과 입력·출력
 
