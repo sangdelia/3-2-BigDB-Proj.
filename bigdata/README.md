@@ -32,9 +32,22 @@ bash bigdata/run_pipeline.sh --stop   # 이 파이프라인의 HDFS 데몬만 �
 - HDFS 상태: `$BIGDB_ROOT/data/processed/bigdata_pipeline/hadoop_runtime/` (포트 19310·199xx, loopback 전용, 기존 EDA namespace와 분리)
 - 필요: Java 11, Hadoop 3.4.2 배포본, 프로젝트 `.venv`(pyspark 3.5.7, polars, pydantic)
 
+## 실행 결과 (2026-11-05)
+
+| 검사 | 결과 |
+|---|---|
+| Bronze: HDFS에서 다시 읽은 SHA-256 = 로컬 | 일치 (316,571행, 64.4MB) |
+| Bronze 행 수 | 일치 |
+| Silver: Spark 출력 키 해시 = Python | 일치 (`d10cf2e8…`, 311,661행) |
+| Gold: Spark 집계 = Python | 27/27 일치 |
+| Gold: MapReduce 집계 = Python | 27/27 일치 (Map 출력 1,558,305건 → Combine 54 → Reduce 27) |
+| Gold: MapReduce 집계 = Spark | 27/27 일치 |
+
+Spark 3.5.7 `local[2]`, 작업 20.7초 (시작 3.5초 별도). MapReduce LocalJobRunner 7초. 결과 파일: `$BIGDB_ROOT/reports/bigdata_pipeline/verification.json`. PPT 9장은 `experiments/update_slide9_pipeline.py`로 이 결과를 반영했다.
+
 ## 범위와 한계
 
 - 단일 서버: HDFS 복제 수 1, Spark `local[2]`, MapReduce LocalJobRunner, YARN 미사용. 다중 서버 확장성은 측정하지 않는다.
 - Spark가 맡는 것은 정제(정규화·충돌 제외·중복 병합)와 집계다. 연결 그룹 분할과 모델 학습은 기존 Python 단계가 그대로 한다.
 - Silver는 중간발표 Spark 비교와 같은 규칙(출력 키 해시 `d10cf2e8…`)이다. 최종 코퍼스(`corpus.parquet`)와 행 수 311,661·라벨 분포는 같지만, 여러 출처에 걸친 중복 문장의 대표 출처(여기서는 사전순 최솟값)와 길이 기준(여기서는 정규화 문장)이 달라 출처별·길이별 집계가 수십 건씩 다르다.
-- 스레드 수가 제한된 환경(예: 에이전트 샌드박스)에서는 JVM이 스레드를 만들지 못해 HDFS·Spark가 시작되지 않는다. 일반 터미널에서 실행한다.
+- 스레드 수가 제한된 환경(예: 에이전트 샌드박스)에서는 JVM이 스레드를 만들지 못해 HDFS·Spark가 시작되지 않는다. 일반 터미널에서 실행한다. (2026-11-05 실행은 스레드 제한이 없는 세션에서 성공)

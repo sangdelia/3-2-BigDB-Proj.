@@ -9,6 +9,7 @@
 | `fp_review2.py` | 2차: 경계 보류(R1) + 단일 조각 보류(R2). 처음 정한 기준(보류 ≤5%, 자동 판정 재현율 ≥ 기존)으로는 어떤 규칙도 선택되지 않음 | `fp_review2.json` |
 | `fp_review3.py` | 3차: 기준을 "보류 ≤5%에서 validation Macro-F1 최대"로 바꿔 선택 → test 1회 평가 | `fp_review3.json` |
 | `build_deck_v13.py` | 보완본 PPT 생성 스크립트 | `ppts/` |
+| `update_slide9_pipeline.py` | HDFS–Spark 파이프라인 실행 결과(2026-11-05)를 PPT 9장에 반영 | `ppts/` |
 
 ```bash
 cd /home/kyu/BigDB_Proj
