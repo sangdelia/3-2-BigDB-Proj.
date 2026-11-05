@@ -12,7 +12,7 @@
     "type": "string (Korean sentence)",
     "constraints": "1–1,000 characters, must contain Hangul",
     "preprocessing_at_inference": "none beyond the vectorizer (raw text → character n-grams)",
-    "sample_file": "input_sample.csv (5,984 rows, 999,949 bytes); columns label/label_id = model A target, b_hate/b_abuse/b_swear (0·1·2, K-HATERS rows only) = model B targets"
+    "sample_file": "input_sample.csv (5,946 rows, 999,999 bytes); model A: label/label_id + split (train 4,420 / validation 566 / test 534); model B: b_hate/b_abuse/b_swear grades 0·1·2 + b_split (train 3,661 / validation 213 / test 213, K-HATERS rows only)"
   },
   "models": [
     {
