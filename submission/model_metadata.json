@@ -1,0 +1,94 @@
+{
+  "project": "혐오체인 · 한국어 유해표현 분석 웹 페이지",
+  "team": ["조규상", "서재철", "윤건호"],
+  "metadata_date": "2026-11-05",
+  "runtime": {
+    "language": "Python 3.11.14",
+    "libraries": {"scikit-learn": "1.9.0", "numpy": "2.4.6", "scipy": "1.17.1", "joblib": "1.6.0"},
+    "hardware": "single server CPU (no GPU)",
+    "serving": "Flask web app (API + page), same input sent to both models"
+  },
+  "input": {
+    "type": "string (Korean sentence)",
+    "constraints": "1–1,000 characters, must contain Hangul",
+    "preprocessing_at_inference": "none beyond the vectorizer (raw text → character n-grams)",
+    "sample_file": "input_sample.csv (5,946 rows, 999,999 bytes); model A: label/label_id + split (train 4,420 / validation 566 / test 534); model B: b_hate/b_abuse/b_swear grades 0·1·2 + b_split (train 3,661 / validation 213 / test 213, K-HATERS rows only)"
+  },
+  "models": [
+    {
+      "id": "model_a_korean_binary",
+      "name": "모델 A · 6종 통합 이진 유해 분류기",
+      "version": "korean_short_v1 / char_2_5_200000",
+      "task": "binary classification (정상 0 / 유해 1)",
+      "artifact": {"path": "artifacts/korean_short_v1/char_2_5_200000.joblib", "size_bytes": 9372929,
+                   "sha256": "68cc4e74a4f54487d59cca3a973b8f8528d5437ac671c77a67016acafb018ded", "trained": "2026-10-10"},
+      "training_data": {
+        "corpus": "6 Korean sources merged (NIKL, UnSmile, KOLD, K-MHaS, K-HATERS, BEEP) → 311,661 rows",
+        "dataset_sha256": "364854dcf55d310a6965324ab5b91929165cc4a4da0fe44b08eda19c06979d4a",
+        "target": "source labels mapped to clean=0 / harmful=1; contradictory labels excluded",
+        "split": "connected-group split 80/10/10, seed 42",
+        "rows": {"train": 249732, "validation": 30580, "test": 31349},
+        "class_balance": {"clean": 115328, "harmful": 196333}
+      },
+      "features": {"method": "TfidfVectorizer", "analyzer": "char", "ngram_range": [2, 5], "max_features": 200000,
+                   "sublinear_tf": true, "idf": "smooth", "norm": "l2", "fit_on": "train only"},
+      "algorithm": {"method": "LogisticRegression", "solver": "liblinear", "penalty": "L2", "C": 1.0,
+                    "class_weight": "balanced", "max_iter": 1000, "random_state": 20261010},
+      "formula": "P(harmful|x) = 1 / (1 + exp(-(w·x + b))); score = 100 × P",
+      "decision": {"threshold": 0.43, "threshold_selection": "validation Macro-F1 (grid 0.05–0.95)",
+                   "review": "no recognized n-gram → review (score hidden)"},
+      "model_selection": "4 settings (3–5/2–5 gram × 60k/200k features) compared on validation Macro-F1",
+      "metrics": {
+        "validation": {"macro_f1": 0.7841, "accuracy": 0.7989, "harmful_precision": 0.8364, "harmful_recall": 0.8448, "clean_false_positive_rate": 0.2785},
+        "test": {"macro_f1": 0.7784, "accuracy": 0.7933, "harmful_precision": 0.8364, "harmful_recall": 0.8352, "harmful_f1": 0.8358,
+                 "clean_false_positive_rate": 0.2782, "confusion": {"tn": 8372, "fp": 3227, "fn": 3254, "tp": 16496}},
+        "baseline_majority_all_harmful_test_macro_f1": 0.3865
+      },
+      "cost": {"fit_seconds": 115.7, "test_predict_seconds_31349_rows": 4.2},
+      "limitations": [
+        "test is an internal split of the same 6 sources, not an independent external benchmark",
+        "character n-grams miss negation/quotation context (e.g. '너는 바보가 아니야.' 43.80 → harmful)",
+        "short inputs can be decided by one fragment (e.g. '시래기' 74.33 via '래기')",
+        "label definitions differ by source; K-HATERS clean false-positive rate 38.8% on test"
+      ],
+      "experimental_not_deployed": "hold rule (43 ≤ score < 48, or ≤2 fragments with ≥60% share and score < 80 → review): test review 4.79%, auto-decided clean FPR 27.86% → 23.64%"
+    },
+    {
+      "id": "model_b_khaters_scores",
+      "name": "모델 B · K-HATERS 평점 점수 모델 (Hate · 공격성 · 욕설)",
+      "version": "khaters_score_v2",
+      "task": "3-grade classification (0·1·2) per score → 0–100 score",
+      "artifact": {"path": "artifacts/khaters_score_v2/model.joblib", "size_bytes": 11048261,
+                   "sha256": "29720d7b05bac6d668c03fad242ac5bb97577ae651509609930bc6308f04ac97", "trained": "2026-10-26"},
+      "training_data": {
+        "corpus": "K-HATERS Ratings (humane-lab), revision fe022af988c3dc5240340fc89629ca1e153fe8bd",
+        "dataset_digest": "d36bca0b7c1a2c4d5c36e794b866ba261d5ae086850a09adf2d2018248efed90",
+        "split": "official train / validation / test after cleaning (empty text, rating conflicts, cross-split duplicates removed)",
+        "rows": {"train": 172097, "validation": 9997, "test": 9997},
+        "targets": {"hate": "max(gender, age, disability, job, race, religion, politics)",
+                    "abuse": "max(all 13 original ratings)", "swear": "swear"},
+        "text_normalization": "limited normalization of 8 expression patterns (v2), chosen on validation MAE"
+      },
+      "features": {"method": "TfidfVectorizer", "analyzer": "char", "ngram_range": [2, 5], "max_features": 100000,
+                   "sublinear_tf": true, "fit_on": "train only", "shared_by_three_heads": true},
+      "algorithm": {"method": "LogisticRegression × 3 (one per score)", "solver": "lbfgs", "multi_class": "multinomial (3 grades)",
+                    "class_weight": null, "max_iter": 1000, "random_state": 20261014},
+      "formula": "P(k|x) = softmax(z_k / T), k ∈ {0,1,2}; score = 50 × (P(1) + 2·P(2))",
+      "calibration": {"temperature": 1.0, "selection": "validation NLL over 0.5/0.75/1/1.5/2/3 (all three heads chose 1.0)"},
+      "decision": "no threshold; three scores are displayed",
+      "metrics": {
+        "test": {
+          "hate": {"mae": 19.77, "rmse": 27.88, "grade_macro_f1": 0.5864, "train_mean_baseline_mae": 32.44},
+          "abuse": {"mae": 25.76, "rmse": 31.59, "grade_macro_f1": 0.5820, "train_mean_baseline_mae": 35.22},
+          "swear": {"mae": 15.02, "rmse": 24.49, "grade_macro_f1": 0.5616, "train_mean_baseline_mae": 23.16}
+        },
+        "validation_mae": {"hate": 19.88, "abuse": 25.73, "swear": 14.96}
+      },
+      "limitations": [
+        "scores are expected grade values, not probabilities of being correct or harm severity",
+        "weak (grade 1) hate is often predicted as grade 0",
+        "separate data and model from model A; K-HATERS text overlaps model A's corpus, so B must not be evaluated on A's test split"
+      ]
+    }
+  ]
+}
