@@ -26,3 +26,11 @@ artifacts/**
 # 발표·정리 자료와 로컬 실행 기록 (저장소 추적 제외)
 ppts/
 .omo/
+
+PDF/
+
+# 정리·발표·전달 자료와 실행 결과 (저장소 추적 제외)
+exports/
+TeamReport/
+docs/
+reports/
