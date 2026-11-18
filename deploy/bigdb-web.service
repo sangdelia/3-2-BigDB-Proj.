@@ -1,0 +1,15 @@
+[Unit]
+Description=BigDB Korean model web demo
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/BigDB_Proj
+ExecStart=%h/BigDB_Proj/.venv/bin/python -m bigdb_mvp.korean_web
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

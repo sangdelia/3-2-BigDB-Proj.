@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="한국어 메시지의 유해·공격 표현을 실제 모델 점수와 표현 후보 근거로 확인하는 연구용 시연입니다.">
+  <meta name="color-scheme" content="light dark">
+  <title>한국어 메시지 분석 · BigDB</title>
+  <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">BigDB <span>한국어 표현 연구</span></a><span class="stage">중간 발표 시연</span></header>
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">문장 판단과 표현의 근거</p>
+      <h1 id="page-title">어떤 표현이 판단에<br>영향을 줬을까요?</h1>
+      <p class="lead">한국어 메시지를 분석하고, 모델 점수와 표현 후보의 영향을 함께 확인하세요.</p>
+    </section>
+    <div class="workspace">
+      <section class="panel input-panel" aria-labelledby="input-title">
+        <div class="section-heading"><span class="step">01</span><h2 id="input-title">메시지 입력</h2></div>
+        <form id="analysis-form" method="post" action="/api/korean/predict" novalidate>
+          <label for="message">분석할 한국어 메시지</label>
+          <textarea id="message" name="message" rows="7" aria-describedby="input-help character-count input-error" placeholder="여기에 메시지를 입력하세요."></textarea>
+          <div class="input-meta"><p id="input-help">한글이 포함된 메시지 · 최대 1,000자</p><span id="character-count">0 / 1,000</span></div>
+          <p id="input-error" class="error" role="alert" hidden></p>
+          <div class="actions"><button id="submit" class="primary" type="submit" disabled>분석하기 <span aria-hidden="true">↗</span></button><button id="clear" class="quiet" type="button">비우기</button></div>
+        </form>
+        <div class="examples"><h3>예시로 시작하기</h3><div class="example-buttons"><button type="button" data-example="좋은 하루 보내세요. 감사합니다.">일반 인사</button><button type="button" data-example="너는 정말 멍청한 바보야.">공격 표현</button><button type="button" data-example="외국인이라는 이유로 차별하면 안 됩니다.">차별 반대</button></div><p>직접 작성한 설명용 예시입니다.</p></div>
+        <p class="privacy">입력과 분석 결과를 서버에 저장하지 않습니다.</p>
+      </section>
+      <section class="panel result-panel" aria-labelledby="result-title" id="result-panel" aria-busy="false">
+        <div class="section-heading"><span class="step">02</span><h2 id="result-title" tabindex="-1">분석 결과</h2></div>
+        <p id="status" class="status" role="status" aria-live="polite">메시지를 입력하면 분석 결과가 나타납니다.</p>
+        <div id="empty-state" class="empty-state"><svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect x="9" y="8" width="46" height="48" rx="6"/><path d="M19 21h26M19 31h19M19 41h12"/></svg><h3>문장을 넘어, 근거까지</h3><p>문장 전체 점수와 판단에 기여한<br>표현 후보를 함께 확인할 수 있어요.</p></div>
+        <div id="results" hidden>
+          <h3 class="subheading">K-HATERS 기반 평점</h3>
+          <div class="score-row"><p>집단 대상 혐오<br><span class="metric-label">Hate score</span></p><p id="hate-score" class="rating-value">—</p></div>
+          <div class="score-row"><p>전체 공격성</p><p id="abuse-score" class="rating-value">—</p></div>
+          <div class="score-row"><p>욕설</p><p id="swear-score" class="rating-value">—</p></div>
+          <p id="rating-note" class="metric-note"></p>
+          <h3 class="subheading">한국어 6종 기반 유해 분류</h3>
+          <div class="score-row"><div><p class="metric-label">유해 분류 참고 점수</p><p class="score"><span id="score">0</span><span class="score-unit"> / 100</span></p></div><span id="verdict" class="verdict"></span></div>
+          <meter id="score-meter" min="0" max="100" value="0" aria-label="문장 전체 모델 점수"></meter>
+          <p id="threshold-note" class="metric-note"></p>
+          <section id="decision-evidence" hidden aria-labelledby="evidence-title">
+            <h3 id="evidence-title" class="subheading">분류 점수에 영향을 준 표현</h3>
+            <p id="decision-margin" class="metric-note"></p>
+            <p class="metric-note">점수를 올리는 특징</p><ul id="positive-features" class="feature-list"></ul>
+            <p class="metric-note">점수를 내리는 특징</p><ul id="negative-features" class="feature-list"></ul>
+            <p id="feature-counts" class="metric-note"></p>
+            <p class="metric-note">숫자는 문자 특징의 기여값입니다. 단어 자체의 유해성이나 확률이 아니며, 위 K-HATERS 평점과는 별도입니다.</p>
+            <details class="limitations"><summary>전체 계산 내역</summary><p id="decision-calculation" class="metric-note"></p></details>
+          </section>
+          <h3 class="subheading">6종 분류 모델의 표현 후보</h3><div id="highlighted-message" class="message-preview"></div>
+          <p id="candidate-note" class="metric-note"></p>
+          <div id="candidate-list"></div>
+          <details class="limitations"><summary>점수와 근거를 읽는 방법</summary><ul id="limitations-list"></ul></details>
+        </div>
+      </section>
+    </div>
+    <section class="scope-note"><h2>이 결과는 어떻게 읽나요?</h2><p>Hate score는 집단을 겨냥한 혐오의 평점입니다. 개인에게 한 욕설은 Hate score가 낮아도 공격성·욕설 점수가 높을 수 있습니다. 강조와 제거 전후 점수 차이는 아래의 6종 유해 분류 모델에서 계산합니다. 인용과 부정의 문맥에서 잘못 판단할 수 있습니다.</p></section>
+  </main>
+  <footer>AI 기반 빅데이터 프로젝트 <span>한국어 라벨 6종 · 실제 학습 모델</span></footer>
+</body>
+</html>

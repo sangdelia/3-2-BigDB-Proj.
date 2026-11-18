@@ -1,0 +1,17 @@
+[Unit]
+Description=BigDB Cloudflare Quick Tunnel
+Wants=bigdb-web.service
+After=bigdb-web.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/BigDB_Proj
+ExecStart=/usr/bin/bash %h/BigDB_Proj/deploy/quick-tunnel.sh
+ExecStopPost=/usr/bin/rm -f %h/BigDB_Proj/reports/service/current-url.txt
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target
