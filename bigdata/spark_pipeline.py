@@ -1,48 +1,110 @@
-"""Spark stage of the HDFS-integrated pipeline: read Bronze from HDFS, write Silver/Gold back to HDFS.
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11,<3.12"
+# dependencies = ["pyspark==3.5.7", "pydantic>=2.12,<3", "typer>=0.21,<1"]
+# ///
+# How to run: bash bigdata/run_pipeline.sh (sets the runtime and HDFS paths).
+"""Clean HDFS Bronze with Spark and persist Silver and Gold in HDFS."""
 
-Bronze  hdfs://…/bronze/raw_input.parquet       accepted source rows (text, label, source)
-Silver  hdfs://…/silver/corpus/                 whitespace-normalized, conflict-free, exact-dedup rows (+ length)
-        hdfs://…/silver/mr_input/               metadata only (source, label, length) for MapReduce; no text
-Gold    hdfs://…/gold/spark_aggregates/         27-key counts computed by Spark
-Run: python bigdata/spark_pipeline.py --fs hdfs://127.0.0.1:19310 --ns /bigdb/pipeline --report reports/bigdata_pipeline
-"""
 from __future__ import annotations
 
-import argparse
 import hashlib
-import json
+import os
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, Final, Protocol
 
+import typer
 from pyspark.sql import SparkSession
+from pyspark.sql import functions as sf
 
-SILVER_SQL = r"""
-WITH normalized AS (
-  SELECT trim(regexp_replace(text, '[ \\t\\r\\n\\f\\x0B]+', ' ')) AS text, label, source FROM bronze
-), valid AS (
-  SELECT text, sha2(text, 256) AS digest, label, source FROM normalized
-  WHERE text <> '' AND label IN ('clean', 'harmful')
+from bigdata.contracts import (
+    SOURCES,
+    AggregateRow,
+    CleaningAudit,
+    HdfsPaths,
+    SilverKey,
+    SparkReceipt,
+    SparkSettings,
 )
-SELECT digest, min(text) AS text, min(label) AS label, min(source) AS source, char_length(min(text)) AS length
-FROM valid GROUP BY digest HAVING count(DISTINCT label) = 1
+
+if TYPE_CHECKING:
+    from pyspark.sql import DataFrame
+    from pyspark.sql.readwriter import DataFrameReader
+
+VALID_SQL: Final = r"""
+WITH normalized AS (
+  SELECT trim(regexp_replace(text, '[ \\t\\r\\n\\f\\x0B]+', ' ')) AS text,
+         label, source FROM bronze
+)
+SELECT text, sha2(text, 256) AS digest, label, source FROM normalized
+WHERE text <> '' AND label IN ('clean', 'harmful')
 """
-BUCKET = """CASE WHEN length <= 10 THEN '10' WHEN length <= 20 THEN '20' WHEN length <= 50 THEN '50'
-  WHEN length <= 100 THEN '100' WHEN length <= 200 THEN '200' WHEN length <= 500 THEN '500'
+GROUP_SQL: Final = """
+SELECT digest, min(text) AS text, min(label) AS label, min(source) AS source,
+       count(*) AS occurrences, count(DISTINCT label) AS labels
+FROM valid GROUP BY digest
+"""
+SILVER_SQL: Final = """
+SELECT digest, text, label, source, char_length(text) AS length
+FROM grouped WHERE labels = 1
+"""
+BUCKET: Final = """CASE
+  WHEN length <= 10 THEN '10' WHEN length <= 20 THEN '20'
+  WHEN length <= 50 THEN '50' WHEN length <= 100 THEN '100'
+  WHEN length <= 200 THEN '200' WHEN length <= 500 THEN '500'
   WHEN length <= 1000 THEN '1000' ELSE 'overflow' END"""
-GOLD_SQL = f"""
+GOLD_SQL: Final = """
 SELECT 'total' AS key, count(*) AS n FROM silver
 UNION ALL SELECT concat('source:', source), count(*) FROM silver GROUP BY source
 UNION ALL SELECT concat('label:', label), count(*) FROM silver GROUP BY label
-UNION ALL SELECT concat('source_label:', source, ':', label), count(*) FROM silver GROUP BY source, label
-UNION ALL SELECT concat('length:', {BUCKET}), count(*) FROM silver GROUP BY {BUCKET}
+UNION ALL SELECT concat('source_label:', source, ':', label), count(*)
+  FROM silver GROUP BY source, label
+UNION ALL SELECT concat('length:', bucket), count(*) FROM silver GROUP BY bucket
 """
+AUDIT_SQL: Final = """
+SELECT :bronze_rows AS bronze_rows,
+  :bronze_rows - coalesce(sum(occurrences), 0) AS invalid_rows,
+  coalesce(sum(CASE WHEN labels > 1 THEN occurrences ELSE 0 END), 0) AS conflict_rows,
+  coalesce(sum(CASE WHEN labels = 1 THEN occurrences - 1 ELSE 0 END), 0)
+    AS duplicate_rows,
+  count(CASE WHEN labels = 1 THEN 1 END) AS silver_rows
+FROM grouped
+"""
+DEFAULT_REPORT: Final = Path("reports/bigdata_pipeline")
 
 
-def session(fs: str) -> SparkSession:
-    """Single-host Spark kept to few threads; HDFS is the default filesystem."""
-    jvm = "-XX:ActiveProcessorCount=2 -XX:+UseSerialGC -XX:CICompilerCount=2 -Xss512k"
+class SparkEngine(Protocol):
+    """Narrow the SQL boundary left partially untyped by PySpark 3.5."""
+
+    def sql(self, query: str, /, *, args: dict[str, int] | None = None) -> DataFrame:
+        """Execute fixed SQL with separately bound integer parameters."""
+        ...
+
+    @property
+    def read(self) -> DataFrameReader:
+        """Expose Spark's typed HDFS input reader."""
+        ...
+
+    @property
+    def version(self) -> str:
+        """Record the engine version in the run receipt."""
+        ...
+
+    def stop(self) -> None:
+        """Release the local Spark runtime at the CLI boundary."""
+        ...
+
+
+def session(fs: str, settings: SparkSettings) -> SparkEngine:
+    """Use bounded local threads without changing host resource limits."""
+    jvm = (
+        f"-XX:ActiveProcessorCount={settings.workers} -XX:+UseSerialGC "
+        "-XX:CICompilerCount=2 -Xss512k"
+    )
     return (
-        SparkSession.builder.master("local[2]")
+        SparkSession.Builder()
+        .master(f"local[{settings.workers}]")
         .appName("BigDB-HDFS-Spark-pipeline")
         .config("spark.hadoop.fs.defaultFS", fs)
         .config("spark.ui.enabled", "false")
@@ -50,8 +112,8 @@ def session(fs: str) -> SparkSession:
         .config("spark.driver.bindAddress", "127.0.0.1")
         .config("spark.driver.memory", "4g")
         .config("spark.driver.extraJavaOptions", jvm)
-        .config("spark.sql.shuffle.partitions", "4")
-        .config("spark.default.parallelism", "2")
+        .config("spark.sql.shuffle.partitions", str(settings.partitions))
+        .config("spark.default.parallelism", str(settings.partitions))
         .config("spark.rpc.netty.dispatcher.numThreads", "2")
         .config("spark.rpc.io.serverThreads", "1")
         .config("spark.shuffle.io.serverThreads", "1")
@@ -61,55 +123,91 @@ def session(fs: str) -> SparkSession:
     )
 
 
-def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--fs", default="hdfs://127.0.0.1:19310")
-    p.add_argument("--ns", default="/bigdb/pipeline")
-    p.add_argument("--report", type=Path, default=Path("reports/bigdata_pipeline"))
-    a = p.parse_args()
-    a.report.mkdir(parents=True, exist_ok=True)
+def main(
+    fs: str = "hdfs://127.0.0.1:19310",
+    ns: str = "/bigdb/pipeline",
+    report: Path = DEFAULT_REPORT,
+) -> None:
+    """Read Bronze, clean globally, and write run-scoped HDFS datasets."""
+    settings = SparkSettings.model_validate(
+        {
+            "workers": os.environ.get("BIGDB_SPARK_WORKERS", "2"),
+            "partitions": os.environ.get("BIGDB_PARTITIONS", "4"),
+        }
+    )
+    paths = HdfsPaths(
+        bronze=f"{ns}/bronze/raw_input.parquet",
+        silver=f"{ns}/silver/corpus",
+        mr_input=f"{ns}/silver/mr_input",
+        gold=f"{ns}/gold/spark_aggregates",
+    )
+    report.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
-    spark = session(a.fs)
+    spark = session(fs, settings)
     startup = time.perf_counter() - started
     try:
-        t = time.perf_counter()
-        bronze = spark.read.parquet(f"{a.ns}/bronze/raw_input.parquet").select("text", "label", "source")
+        job_started = time.perf_counter()
+        bronze = spark.read.parquet(paths.bronze).select("text", "label", "source")
         bronze.createOrReplaceTempView("bronze")
         bronze_rows = bronze.count()
-        silver = spark.sql(SILVER_SQL)
-        silver.write.mode("overwrite").parquet(f"{a.ns}/silver/corpus")
-        silver = spark.read.parquet(f"{a.ns}/silver/corpus")  # read back from HDFS
-        silver.createOrReplaceTempView("silver")
-        silver.select("source", "label", "length").write.mode("overwrite").json(f"{a.ns}/silver/mr_input")
-        gold = spark.sql(GOLD_SQL)
-        gold.coalesce(1).write.mode("overwrite").option("sep", "\t").csv(f"{a.ns}/gold/spark_aggregates")
-        aggregates = {r["key"]: int(r["n"]) for r in gold.collect()}
-        keys = sorted(f"{r['digest']}|{r['label']}|{r['source']}" for r in silver.select("digest", "label", "source").toLocalIterator())
-        seconds = time.perf_counter() - t
-        payload = {
-            "status": "complete",
-            "spark_version": spark.version,
-            "hadoop_client_version": spark.sparkContext._jvm.org.apache.hadoop.util.VersionInfo.getVersion(),
-            "default_fs": a.fs,
-            "paths": {
-                "bronze": f"{a.ns}/bronze/raw_input.parquet",
-                "silver": f"{a.ns}/silver/corpus",
-                "mr_input": f"{a.ns}/silver/mr_input",
-                "gold": f"{a.ns}/gold/spark_aggregates",
-            },
-            "bronze_rows": bronze_rows,
-            "silver_rows": aggregates.get("total"),
-            "output_keys_sha256": hashlib.sha256("\n".join(keys).encode()).hexdigest(),
-            "aggregates": dict(sorted(aggregates.items())),
-            "startup_seconds": startup,
-            "job_seconds": seconds,
-            "mode": "single host, Spark local[2] reading/writing HDFS; not a multi-node cluster",
-        }
-        (a.report / "spark.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps({k: payload[k] for k in ("bronze_rows", "silver_rows", "output_keys_sha256", "job_seconds")}))
+        spark.sql(VALID_SQL).filter(
+            sf.col("source").isin(list(SOURCES))
+        ).createOrReplaceTempView("valid")
+        grouped = spark.sql(GROUP_SQL).cache()
+        grouped.createOrReplaceTempView("grouped")
+        audit = CleaningAudit.model_validate_json(
+            spark.sql(AUDIT_SQL, args={"bronze_rows": bronze_rows})
+            .toJSON()
+            .collect()[0]
+        )
+        spark.sql(SILVER_SQL).repartition(settings.partitions).write.parquet(
+            paths.silver, mode="errorifexists"
+        )
+        _ = grouped.unpersist()
+        silver = spark.read.parquet(paths.silver)
+        silver.withColumn("bucket", sf.expr(BUCKET)).createOrReplaceTempView("silver")
+        silver.select("source", "label", "length").write.json(
+            paths.mr_input, mode="errorifexists"
+        )
+        spark.sql(GOLD_SQL).coalesce(1).write.option("sep", "\t").csv(
+            paths.gold, mode="errorifexists"
+        )
+        # Gold is read from storage so verification covers HDFS output.
+        gold = (
+            spark.read.schema("key STRING, n LONG").option("sep", "\t").csv(paths.gold)
+        )
+        aggregate_rows = (
+            AggregateRow.model_validate_json(raw)
+            for raw in gold.toJSON().toLocalIterator()
+        )
+        aggregates = {row.key: row.n for row in aggregate_rows}
+        silver_keys = (
+            SilverKey.model_validate_json(raw)
+            for raw in silver.select("digest", "label", "source")
+            .toJSON()
+            .toLocalIterator()
+        )
+        keys = sorted(f"{row.digest}|{row.label}|{row.source}" for row in silver_keys)
+        receipt = SparkReceipt(
+            spark_version=spark.version,
+            default_fs=fs,
+            paths=paths,
+            bronze_rows=bronze_rows,
+            silver_rows=aggregates.get("total", 0),
+            output_keys_sha256=hashlib.sha256("\n".join(keys).encode()).hexdigest(),
+            aggregates=dict(sorted(aggregates.items())),
+            startup_seconds=startup,
+            job_seconds=time.perf_counter() - job_started,
+            settings=settings,
+            audit=audit,
+        )
+        _ = (report / "spark.json").write_text(
+            receipt.model_dump_json(indent=2) + "\n", encoding="utf-8"
+        )
+        typer.echo(receipt.model_dump_json())
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
