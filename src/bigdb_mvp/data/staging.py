@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
+from pydantic import ValidationError
+
 from bigdb_mvp.data.manifest import SourceReceipt
 from bigdb_mvp.data.models import SupervisedRecord
 
@@ -49,7 +51,10 @@ def read_staged(
     if not records_path.exists() or not receipt_path.exists():
         reason = "staging_incomplete"
         raise StagingIntegrityError(reason, source)
-    receipt = SourceReceipt.model_validate_json(receipt_path.read_bytes())
+    try:
+        receipt = SourceReceipt.model_validate_json(receipt_path.read_bytes())
+    except ValidationError:
+        return None
     actual_sha = sha256_file(records_path)
     if actual_sha != receipt.staging_sha256:
         reason = "staging_checksum_drift"

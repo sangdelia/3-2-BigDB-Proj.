@@ -1,0 +1,1 @@
+"""Minimal SciPy package boundary."""

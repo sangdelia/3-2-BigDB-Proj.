@@ -9,6 +9,7 @@ from typing import Final
 
 import polars as pl
 
+from bigdb_mvp.data.arrow_sources import ARROW_SOURCES, ingest_arrow_source
 from bigdb_mvp.data.civil_source import ingest_civil_comments
 from bigdb_mvp.data.local_sources import LOCAL_SOURCES, ingest_local_source
 from bigdb_mvp.data.manifest import (
@@ -24,6 +25,8 @@ from bigdb_mvp.data.models import (
     SplitName,
     SupervisedRecord,
 )
+from bigdb_mvp.data.remote_registry import REMOTE_SOURCES
+from bigdb_mvp.data.remote_sources import ingest_remote_source
 from bigdb_mvp.data.split import (
     assign_group_splits,
     deduplicate_exact,
@@ -164,6 +167,14 @@ def build_dataset(*, seed: int) -> Manifest:
     receipts: list[SourceReceipt] = []
     for spec in LOCAL_SOURCES:
         source_records, receipt = ingest_local_source(spec)
+        records.extend(source_records)
+        receipts.append(receipt)
+    for spec in REMOTE_SOURCES:
+        source_records, receipt = ingest_remote_source(spec)
+        records.extend(source_records)
+        receipts.append(receipt)
+    for spec in ARROW_SOURCES:
+        source_records, receipt = ingest_arrow_source(spec)
         records.extend(source_records)
         receipts.append(receipt)
     civil_records, civil_receipt = ingest_civil_comments()

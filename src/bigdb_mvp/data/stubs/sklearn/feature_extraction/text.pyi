@@ -1,4 +1,4 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 class FloatVector:
     def __iter__(self) -> Iterator[float]: ...
@@ -6,10 +6,18 @@ class FloatVector:
 
 class FeatureMatrix:
     def toarray(self) -> tuple[FloatVector, ...]: ...
+    def getnnz(self, *, axis: int) -> Sequence[int]: ...
 
 class TfidfVectorizer:
     def __init__(
-        self, *, analyzer: str, ngram_range: tuple[int, int], sublinear_tf: bool
+        self,
+        *,
+        analyzer: str,
+        ngram_range: tuple[int, int],
+        sublinear_tf: bool,
+        max_features: int | None = None,
+        token_pattern: str = ...,
+        preprocessor: Callable[[str], str] | None = None,
     ) -> None: ...
     def fit_transform(self, raw_documents: Sequence[str]) -> FeatureMatrix: ...
     def transform(self, raw_documents: Sequence[str]) -> FeatureMatrix: ...

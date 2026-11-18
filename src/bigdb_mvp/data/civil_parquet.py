@@ -40,8 +40,8 @@ class CivilBatch:
 class CivilScanLimits:
     """Bounded acquisition limits for one local Parquet scan."""
 
-    per_label_target: int
-    max_scanned_rows: int
+    per_label_target: int | None
+    max_scanned_rows: int | None
 
 
 class CivilParquetError(Exception):
@@ -90,13 +90,19 @@ def scan_civil_parquet(path: Path, limits: CivilScanLimits) -> CivilBatch:
             columns=["text", "toxicity"],
         ):
             for raw_row in batch.to_pylist():
-                if scanned >= limits.max_scanned_rows:
+                if (
+                    limits.max_scanned_rows is not None
+                    and scanned >= limits.max_scanned_rows
+                ):
                     break
                 scanned += 1
                 try:
                     row = CivilInput.model_validate(raw_row)
                     label = civil_label(row.toxicity)
-                    if label_counts[label] >= limits.per_label_target:
+                    if (
+                        limits.per_label_target is not None
+                        and label_counts[label] >= limits.per_label_target
+                    ):
                         continue
                     records.append(
                         build_record(
@@ -114,9 +120,16 @@ def scan_civil_parquet(path: Path, limits: CivilScanLimits) -> CivilBatch:
                     exclusions["invalid_schema"] += 1
                 except RowExclusionError as error:
                     exclusions[error.reason_code] += 1
-                if _quotas_full(label_counts, limits.per_label_target):
+                if limits.per_label_target is not None and _quotas_full(
+                    label_counts, limits.per_label_target
+                ):
                     break
-            if scanned >= limits.max_scanned_rows or _quotas_full(
+            if (
+                limits.max_scanned_rows is not None
+                and scanned >= limits.max_scanned_rows
+            ):
+                break
+            if limits.per_label_target is not None and _quotas_full(
                 label_counts, limits.per_label_target
             ):
                 break

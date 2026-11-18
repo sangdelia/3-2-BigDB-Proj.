@@ -8,22 +8,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, assert_never
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 
-from bigdb_mvp.data.boundaries import ExternalInput, NiklInput
-from bigdb_mvp.data.manifest import ExclusionCount, SourceReceipt
+from bigdb_mvp.data.boundaries import NiklInput
+from bigdb_mvp.data.manifest import ExclusionCount, SourceReceipt, schema_digest
 from bigdb_mvp.data.models import (
     BinaryLabel,
+    CanonicalRole,
     Language,
     RecordDraft,
     SourceName,
     SupervisedRecord,
 )
-from bigdb_mvp.data.normalize import RowExclusionError, build_record, khaters_label
+from bigdb_mvp.data.normalize import RowExclusionError, build_record
 from bigdb_mvp.data.staging import read_staged, write_staged
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 STAGING_ROOT = PROJECT_ROOT / "data" / "raw" / "staging"
+NIKL_LOCAL_DIGEST: Final = (
+    "73d9558e06a057f11d2910dfc13b57e287128c6b3aeba649b28a560c79fd5b8f"
+)
 BINARY_LABELS: Final = {
     "appropriate": BinaryLabel.CLEAN,
     "inappropriate": BinaryLabel.HARMFUL,
@@ -37,6 +41,11 @@ class LocalSourceSpec:
     source: SourceName
     upstream: Path
     license: str
+    revision: str = ""
+    expected_sha256: str = ""
+    expected_rows: int | None = None
+    source_split: str = "train"
+    role: CanonicalRole = CanonicalRole.RESEARCH_INDEX
 
 
 LOCAL_SOURCES = (
@@ -44,40 +53,40 @@ LOCAL_SOURCES = (
         SourceName.NIKL,
         Path("/home/kyu/Coulmn/hate-speech-sib/experiments/data/nikl_train.json"),
         "restricted_local_review_required",
-    ),
-    LocalSourceSpec(
-        SourceName.BEEP,
-        Path("/home/kyu/Coulmn")
-        / "hate-speech-grad-thesis/experiments/data/external/beep_kocohub.jsonl",
-        "CC-BY-SA-4.0",
-    ),
-    LocalSourceSpec(
-        SourceName.KMHAS,
-        Path("/home/kyu/Coulmn")
-        / "hate-speech-grad-thesis/experiments/data/external/kmhas.jsonl",
-        "CC-BY-SA-4.0",
-    ),
-    LocalSourceSpec(
-        SourceName.KHATERS,
-        Path("/home/kyu/Coulmn")
-        / "hate-speech-grad-thesis/experiments/data/external/khaters.jsonl",
-        "CC-BY-4.0",
+        revision=NIKL_LOCAL_DIGEST,
+        expected_sha256=NIKL_LOCAL_DIGEST,
+        expected_rows=2_109,
     ),
 )
 
 
-class LocalSourceMissingError(Exception):
+class LocalSourceError(Exception):
+    """Report a source-scoped local acquisition failure."""
+
+    reason_code: str
+    source: SourceName
+
+    def __init__(self, reason_code: str, source: SourceName) -> None:
+        """Initialize a source-scoped local failure."""
+        self.reason_code = reason_code
+        self.source = source
+        super().__init__(f"{reason_code}:{source.value}")
+
+
+class LocalSourceMissingError(LocalSourceError):
     """Report an unavailable authorized local input before staging exists."""
 
     source: SourceName
 
     def __init__(self, source: SourceName) -> None:
         """Initialize a source-specific missing-input failure."""
-        self.source = source
-        super().__init__(f"local_source_missing:{source.value}")
+        super().__init__("local_source_missing", source)
 
 
-def _binary_cached_label(raw: str) -> BinaryLabel:
+def _binary_cached_label(raw: str | None) -> BinaryLabel:
+    if raw is None:
+        reason = "unlabeled_row"
+        raise RowExclusionError(reason)
     label = BINARY_LABELS.get(raw.strip().lower())
     if label is None:
         reason = "unknown_binary_label"
@@ -106,7 +115,7 @@ def _ingest_nikl(
                     label=_binary_cached_label(row.label),
                     language=Language.KO,
                     source=spec.source,
-                    source_split="train",
+                    source_split=spec.source_split,
                     preferred_group_id=row.doc_id,
                 )
             )
@@ -115,97 +124,118 @@ def _ingest_nikl(
     return tuple(drafts), exclusions, len(rows)
 
 
-def _external_draft(spec: LocalSourceSpec, row: ExternalInput) -> RecordDraft:
-    metadata = row.metadata
-    if metadata is None:
-        reason = (
-            "khaters_original_label_missing"
-            if spec.source is SourceName.KHATERS
-            else "metadata_missing"
-        )
-        raise RowExclusionError(reason)
-    if metadata.split.strip().lower() != "train":
-        reason = "non_train_split"
-        raise RowExclusionError(reason)
-    match spec.source:
-        case SourceName.BEEP:
-            label = _binary_cached_label(row.label)
-            preferred_id = metadata.title
-        case SourceName.KMHAS:
-            label = _binary_cached_label(row.label)
-            preferred_id = None
-        case SourceName.KHATERS:
-            original = metadata.original_label
-            match original:
-                case str() as original_text:
-                    label = khaters_label(original_text)
-                case tuple() | None:
-                    label = khaters_label(None)
-                case _ as unreachable:
-                    assert_never(unreachable)
-            preferred_id = None
-        case SourceName.NIKL | SourceName.CIVIL_COMMENTS:
-            reason = "source_not_external"
-            raise RowExclusionError(reason)
-        case _ as unreachable:
-            assert_never(unreachable)
-    return RecordDraft(
-        text=row.target_form,
-        label=label,
-        language=Language.KO,
-        source=spec.source,
-        source_split="train",
-        preferred_group_id=preferred_id,
-    )
-
-
-def _ingest_external(
-    spec: LocalSourceSpec, payload: bytes
-) -> tuple[tuple[RecordDraft, ...], Counter[str], int]:
-    drafts: list[RecordDraft] = []
-    exclusions: Counter[str] = Counter()
-    lines = tuple(line for line in payload.splitlines() if line)
-    for line in lines:
-        try:
-            row = ExternalInput.model_validate_json(line)
-            drafts.append(_external_draft(spec, row))
-        except ValidationError:
-            exclusions["invalid_schema"] += 1
-        except RowExclusionError as error:
-            exclusions[error.reason_code] += 1
-    return tuple(drafts), exclusions, len(lines)
-
-
 def ingest_local_source(
     spec: LocalSourceSpec,
 ) -> tuple[tuple[SupervisedRecord, ...], SourceReceipt]:
     """Reuse verified staging or ingest one authorized local source once."""
     staged = read_staged(STAGING_ROOT, spec.source.value)
     if staged is not None:
-        return staged
+        records, receipt = staged
+        if not (
+            receipt.revision != spec.revision
+            or receipt.license != spec.license
+            or receipt.input_sha256 != spec.expected_sha256
+            or receipt.asset_sha256 != spec.expected_sha256
+            or receipt.asset != spec.upstream.name
+            or receipt.source_split != spec.source_split
+            or receipt.role is not spec.role
+            or (
+                spec.expected_rows is not None
+                and receipt.expected_rows != spec.expected_rows
+            )
+        ):
+            return records, receipt
     if not spec.upstream.is_file():
         raise LocalSourceMissingError(spec.source)
     payload = spec.upstream.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+    if spec.expected_sha256 and digest != spec.expected_sha256:
+        reason = "local_source_checksum_drift"
+        raise LocalSourceError(reason, spec.source)
     match spec.source:
         case SourceName.NIKL:
             drafts, exclusions, scanned = _ingest_nikl(spec, payload)
-        case SourceName.BEEP | SourceName.KMHAS | SourceName.KHATERS:
-            drafts, exclusions, scanned = _ingest_external(spec, payload)
-        case SourceName.CIVIL_COMMENTS:
+        case (
+            SourceName.BEEP
+            | SourceName.KMHAS
+            | SourceName.KHATERS
+            | SourceName.UNSMILE
+            | SourceName.KOLD
+            | SourceName.CIVIL_COMMENTS
+        ):
             reason = "source_not_local"
-            raise RowExclusionError(reason)
+            raise LocalSourceError(reason, spec.source)
         case _ as unreachable:
             assert_never(unreachable)
     records = tuple(build_record(draft) for draft in drafts)
     receipt = SourceReceipt(
         source=spec.source,
-        revision=hashlib.sha256(payload).hexdigest(),
+        revision=spec.revision or digest,
         license=spec.license,
-        input_sha256=hashlib.sha256(payload).hexdigest(),
+        input_sha256=digest,
+        asset_sha256=digest,
+        asset=spec.upstream.name,
+        source_split=spec.source_split,
+        role=spec.role,
+        expected_rows=spec.expected_rows,
         scanned=scanned,
         accepted=len(records),
         excluded=sum(exclusions.values()),
         exclusions=_exclusion_tuple(exclusions),
+        schema_sha256=schema_digest(
+            tuple((name, "json") for name in NiklInput.model_fields)
+        ),
+        raw_bytes=len(payload),
+        acquisition_mode="full",
     )
+    if spec.role is CanonicalRole.UNLABELED_INVENTORY:
+        exclusions["unlabeled_inventory_label"] += len(records)
+        records = ()
+        receipt = receipt.model_copy(
+            update={"accepted": 0, "excluded": sum(exclusions.values())}
+        )
     complete = write_staged(STAGING_ROOT, receipt, records)
     return records, complete
+
+
+def ingest_nikl_dev() -> tuple[tuple[SupervisedRecord, ...], SourceReceipt]:
+    """Ingest the authorized, independently hashed NIKL development asset."""
+    path = Path("/home/kyu/Coulmn/hate-speech-sib/experiments/data/nikl_dev.json")
+    payload = path.read_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+    drafts, exclusions, scanned = _ingest_nikl(
+        LocalSourceSpec(
+            source=SourceName.NIKL,
+            upstream=path,
+            license="restricted_local_review_required",
+            source_split="train",
+            role=CanonicalRole.CALIBRATION_QUERY,
+        ),
+        payload,
+    )
+    records = tuple(
+        build_record(draft).model_copy(update={"source_split": "dev"})
+        for draft in drafts
+    )
+    receipt = SourceReceipt(
+        source=SourceName.NIKL,
+        revision=digest,
+        license="restricted_local_review_required",
+        input_sha256=digest,
+        asset_sha256=digest,
+        asset=path.name,
+        staging_sha256=digest,
+        source_split="dev",
+        role=CanonicalRole.CALIBRATION_QUERY,
+        expected_rows=scanned,
+        schema_sha256=schema_digest(
+            tuple((name, "json") for name in NiklInput.model_fields)
+        ),
+        scanned=scanned,
+        accepted=len(records),
+        excluded=sum(exclusions.values()),
+        raw_bytes=len(payload),
+        exclusions=_exclusion_tuple(exclusions),
+        acquisition_mode="full",
+    )
+    return records, receipt

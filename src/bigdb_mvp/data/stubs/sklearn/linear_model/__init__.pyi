@@ -7,8 +7,10 @@ class ProbabilityMatrix:
 
 class LogisticRegression:
     coef_: tuple[FloatVector, ...]
+    intercept_: FloatVector
+    classes_: Sequence[int]
     def __init__(
-        self, *, class_weight: str, max_iter: int, random_state: int, solver: str
+        self, *, class_weight: str | None, max_iter: int, random_state: int, solver: str
     ) -> None: ...
     def fit(self, x: FeatureMatrix, y: Sequence[int]) -> LogisticRegression: ...
     def predict_proba(self, x: FeatureMatrix) -> ProbabilityMatrix: ...

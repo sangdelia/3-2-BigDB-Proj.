@@ -27,6 +27,7 @@ def create_client() -> httpx2.Client:
     return httpx2.Client(
         transport=transport,
         timeout=TIMEOUT,
-        follow_redirects=True,
+        follow_redirects=False,
+        max_redirects=5,
         headers={"User-Agent": "bigdb-mvp/0.1 bounded-dataset-ingest"},
     )
