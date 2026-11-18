@@ -1,0 +1,21 @@
+entries:
+  - language: ko
+    term: 멍청이
+    replacement: 부적절한 표현
+    reason_code: personal_insult
+  - language: ko
+    term: 멍청이야
+    replacement: 부적절한 표현이야
+    reason_code: personal_insult
+  - language: ko
+    term: 바보
+    replacement: 부적절한 표현
+    reason_code: personal_insult
+  - language: en
+    term: idiot
+    replacement: inappropriate expression
+    reason_code: personal_insult
+  - language: en
+    term: stupid
+    replacement: unconstructive
+    reason_code: personal_insult

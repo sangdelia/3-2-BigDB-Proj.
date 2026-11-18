@@ -1,5 +1,5 @@
 schema_version: 1
-as_of: "2026-09-08"
+as_of: "2026-09-15"
 counts_are_pre_deduplication: true
 
 mvp:
@@ -26,9 +26,10 @@ mvp:
 summary:
   supervised_candidate_rows: 371907
   verified_open_license_rows: 310217
-  license_review_rows: 61690
-  current_local_labeled_rows: 67061
-  current_local_all_rows: 68718
+  verified_restricted_license_rows: 18742
+  license_review_rows: 42948
+  current_local_labeled_rows: 320721
+  current_local_all_rows: 322378
   thesis_eval_candidates_after_exact_dedupe: 6777
   thesis_selected_eval_rows: 900
   optional_beep_unlabeled_rows: 2033893
@@ -45,18 +46,23 @@ sources:
     current_local_rows: 4176
     license_status: restricted_local_review_required
     redistribution: false
+    connection: licensed_local_train
 
   unsmile:
     name: Korean UnSmile
-    source: https://github.com/smilegate-ai/korean_unsmile_dataset
+    source: https://huggingface.co/datasets/smilegate-ai/kor_unsmile
     revision: 6ef17c27881aa44b0d74e9fe29e8d031b40ba07f
     splits:
       train: 15005
       valid: 3737
     supervised_candidate_rows: 18742
     current_local_rows: 18742
-    license_status: not_declared_in_checked_repository_metadata
+    license: CC-BY-NC-ND-4.0
+    license_status: verified_from_official_repository
     redistribution: false
+    connection: pinned_local_arrow_train
+    connected_rows: 15005
+    connected_asset_sha256: 75f67b6c1c5bf8758df9f7d442f3acc188dc6a2c7ab13577e3b9ea88ad301866
 
   kold:
     name: KOLD
@@ -68,44 +74,71 @@ sources:
     current_local_rows: 40429
     license_status: not_declared_in_checked_dataset_card
     redistribution: false
+    connection: pinned_local_arrow_published_split
+    connected_rows: 40429
+    connected_asset_sha256: f1873f3fa3b8d6a738fcb709538a0c6aa9c058a9921019f6b5002748d8e04b2b
 
   kmhas:
     name: K-MHaS
-    source: https://huggingface.co/datasets/jeanlee/kmhas_korean_hate_speech
+    source: https://github.com/adlnlp/K-MHaS
+    revision: ec7a7e775d650b825872f6f538fc717822cdfc1a
     splits:
       train: 78977
       validation: 8776
       test: 21939
     supervised_candidate_rows: 109692
-    current_local_rows: 2100
+    current_local_rows: 78977
     license: CC-BY-SA-4.0
     license_status: verified_from_dataset_card
     redistribution: attribution_and_share_alike_required
+    connection: pinned_remote_full_train
+    connected_rows: 78977
+    connected_asset_bytes: 6845463
+    connected_asset_sha256: ca9145afc5fd70a2222094daa427e57a08b309cb42dcce7986528b44eb0e7008
 
   khaters:
     name: K-HATERS
     source: https://huggingface.co/datasets/humane-lab/K-HATERS
+    revision: 67b979254f2f5874f3c0f649e0db8ab33d038e0d
     splits:
       train: 172158
       validation: 10000
       test: 10000
     supervised_candidate_rows: 192158
-    current_local_rows: 2100
+    current_local_rows: 172158
     license: CC-BY-4.0
     license_status: verified_from_dataset_card
     redistribution: attribution_required
-    caution: Reacquire and lowercase original labels before mapping.
+    caution: Lowercase original labels before mapping; exclude unknown labels.
+    connection: pinned_remote_full_train
+    connected_rows: 172158
+    accepted_rows: 172157
+    exclusions:
+      empty_text: 1
+    connected_asset_bytes: 47417162
+    connected_asset_sha256: e1eb9a7e7a7693a1d0e03f206a72247b98b703fdda8db8d74f25ddc8679aa437
 
   beep:
     name: BEEP Korean Hate Speech
     source: https://github.com/kocohub/korean-hate-speech
+    revision: f8d05dce2b22007bb149e5139c0060c68ad8f94b
     splits:
       train_labeled: 7896
       dev_labeled: 471
       test_label_hidden: 974
       unlabeled: 2033893
     supervised_candidate_rows: 8367
-    current_local_rows: 1171
+    current_local_rows: 7896
     license: CC-BY-SA-4.0
     license_status: verified_from_repository_metadata
     redistribution: attribution_and_share_alike_required
+    connection: pinned_remote_full_train_with_article_groups
+    connected_rows: 7896
+    connected_input_sha256: a03e08b32120ef5d26aa5c3006c60eeffb66741bd776cf8f91cc9e4ba99b2ee4
+    connected_assets:
+      - name: labeled/train.tsv
+        bytes: 913546
+        sha256: ebebacdcd023af2c4acc8c0a37695fb6433ac04fc009feff8f222724e303a5a9
+      - name: news_title/train.news_title.txt
+        bytes: 742357
+        sha256: 80fcb349633ddf38062c17363f18e62b3e533640c2a31ba50468963ff5db1492
