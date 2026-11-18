@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from typing import TYPE_CHECKING
 
 import pytest
@@ -74,6 +75,28 @@ def test_group_id_prefers_article_or_conversation_identifier() -> None:
 
     # When / Then: the preferred source identifier groups both records together.
     assert first == second
+
+
+def test_all_planned_korean_sources_have_typed_identifiers() -> None:
+    # Given: the six Korean datasets approved by the course project plan.
+    expected = {"nikl", "unsmile", "kold", "kmhas", "khaters", "beep"}
+
+    # When: their shared source identifiers are enumerated.
+    actual = {source.value for source in SourceName}
+
+    # Then: every planned Korean source can cross the typed ingest boundary.
+    assert expected.issubset(actual)
+
+
+def test_planned_arrow_source_adapter_is_importable() -> None:
+    # Given: full local Arrow caches for UnSmile and KOLD.
+    module_name = "bigdb_mvp.data.arrow_sources"
+
+    # When: the project resolves the dedicated cache adapter.
+    adapter = importlib.util.find_spec(module_name)
+
+    # Then: the two datasets have a production ingest boundary.
+    assert adapter is not None
 
 
 def test_group_id_falls_back_to_normalized_text_hash() -> None:
