@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="BigDB 한국어 혐오 표현 데이터의 결측·중복·라벨 충돌 처리와 분포를 집계 JSON으로 설명하는 발표용 화면">
+  <title>한국어 데이터 품질·전처리 점검</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="modulepreload" href="format.js">
+  <link rel="modulepreload" href="dom.js">
+  <link rel="modulepreload" href="contract.js">
+  <link rel="modulepreload" href="render-quality.js">
+  <link rel="modulepreload" href="render-distribution.js">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+
+  <header class="page page-header">
+    <p class="eyebrow">BigDB 팀 프로젝트 · EDA와 전처리</p>
+    <h1>한국어 데이터 품질·전처리 점검</h1>
+    <div id="meta" class="meta">
+      <p class="muted">집계 정보를 불러오는 중입니다.</p>
+    </div>
+    <div class="cluster actions">
+      <a id="download" class="btn btn-primary" aria-disabled="true">집계 JSON 내려받기</a>
+      <button id="theme-toggle" class="btn btn-secondary" type="button">어두운 화면으로 보기</button>
+      <button id="print" class="btn btn-secondary" type="button">인쇄</button>
+    </div>
+    <nav id="toc" class="toc" aria-label="섹션 목차" hidden>
+      <ol class="cluster">
+        <li><a href="#pipeline">처리 흐름</a></li>
+        <li><a href="#sources">출처별 구성</a></li>
+        <li><a href="#missing">결측 점검</a></li>
+        <li><a href="#labels">라벨 분포</a></li>
+        <li><a href="#length">문자 길이</a></li>
+        <li><a href="#splits">분할</a></li>
+        <li><a href="#annotations">선택 주석</a></li>
+        <li><a href="#methods">처리 방법 비교</a></li>
+        <li><a href="#runtime">실행 환경</a></li>
+        <li><a href="#notes">참고 사항</a></li>
+      </ol>
+    </nav>
+  </header>
+
+  <main id="main" class="page" aria-busy="true">
+    <div id="status" class="panel status-panel">
+      <p id="status-text" role="status" aria-live="polite">집계를 불러오는 중입니다.</p>
+      <button id="retry" class="btn btn-secondary" type="button" hidden>다시 시도</button>
+    </div>
+
+    <div id="report" class="stack report" hidden>
+      <section id="pipeline" class="stack section" aria-labelledby="pipeline-title">
+        <h2 id="pipeline-title">처리 흐름: 원본에서 최종 데이터까지</h2>
+        <p id="pipeline-lead" class="lead"></p>
+        <ol id="pipeline-flow" class="flow"></ol>
+        <div class="panel table-panel">
+          <table class="data-table">
+            <caption class="sr-only">전처리 단계별 입력, 제외, 출력 행 수</caption>
+            <thead>
+              <tr>
+                <th scope="col">단계</th>
+                <th scope="col" class="num">입력 행</th>
+                <th scope="col" class="num">제외 행</th>
+                <th scope="col" class="num">출력 행</th>
+                <th scope="col">처리 내용</th>
+              </tr>
+            </thead>
+            <tbody id="pipeline-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="sources" class="stack section" aria-labelledby="sources-title">
+        <h2 id="sources-title">출처별 구성</h2>
+        <form id="source-filters" class="cluster filters" role="search" aria-label="출처 표 필터">
+          <div class="field">
+            <label for="source-filter">출처</label>
+            <select id="source-filter">
+              <option value="">전체 출처</option>
+            </select>
+          </div>
+          <div class="field field-grow">
+            <label for="source-search">출처명 검색</label>
+            <input id="source-search" type="search" autocomplete="off" spellcheck="false">
+          </div>
+          <p id="source-count" class="field-note muted" aria-live="polite"></p>
+        </form>
+        <div class="panel table-panel">
+          <table class="data-table">
+            <caption class="sr-only">출처별 원본, 정제, 최종 행과 라벨, 문맥·주석 보유 행</caption>
+            <thead>
+              <tr>
+                <th scope="col">출처</th>
+                <th scope="col" class="num">원본</th>
+                <th scope="col" class="num">정제</th>
+                <th scope="col" class="num">최종</th>
+                <th scope="col" class="num">clean</th>
+                <th scope="col" class="num">harmful</th>
+                <th scope="col" class="num">문맥 보유</th>
+                <th scope="col" class="num">대상 주석</th>
+                <th scope="col" class="num">표현 주석</th>
+              </tr>
+            </thead>
+            <tbody id="source-rows"></tbody>
+            <tfoot id="source-total"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section id="missing" class="stack section" aria-labelledby="missing-title">
+        <h2 id="missing-title">결측 점검: 필수 결측과 원천 미제공 주석</h2>
+        <p class="lead">필수 필드가 비어 있으면 학습에 쓸 수 없어 제외합니다. 선택 주석은 일부 원천만 제공하는 정보라 비어 있는 것이 정상입니다. 빈 선택 주석을 “정답 없음”이나 최빈값으로 채우지 않고 원천 미제공 상태로 둡니다.</p>
+        <div class="switcher">
+          <div class="stack-sm">
+            <h3>필수 필드</h3>
+            <div class="panel table-panel">
+              <table class="data-table">
+                <caption class="sr-only">필수 필드별 결측 행과 비율</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">필드</th>
+                    <th scope="col" class="num">결측 행</th>
+                    <th scope="col">비율</th>
+                    <th scope="col">의미</th>
+                  </tr>
+                </thead>
+                <tbody id="missing-required"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stack-sm">
+            <h3>선택 주석</h3>
+            <div class="panel table-panel">
+              <table class="data-table">
+                <caption class="sr-only">선택 주석 필드별 원천 미제공 행과 비율</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">필드</th>
+                    <th scope="col" class="num">원천 미제공 행</th>
+                    <th scope="col">비율</th>
+                    <th scope="col">의미</th>
+                  </tr>
+                </thead>
+                <tbody id="missing-optional"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="labels" class="stack section" aria-labelledby="labels-title">
+        <h2 id="labels-title">라벨 분포</h2>
+        <div class="switcher">
+          <div class="panel stack-sm">
+            <h3>최종 데이터 전체</h3>
+            <ul id="label-bars" class="bar-list"></ul>
+          </div>
+          <div class="panel stack-sm">
+            <h3>출처별 라벨 구성</h3>
+            <p class="legend muted"><span class="swatch swatch-clean" aria-hidden="true"></span>clean <span class="swatch swatch-harmful" aria-hidden="true"></span>harmful</p>
+            <ul id="label-by-source" class="stack-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="length" class="stack section" aria-labelledby="length-title">
+        <h2 id="length-title">문자 길이</h2>
+        <p id="length-lead" class="lead"></p>
+        <dl id="length-stats" class="stat-list"></dl>
+        <div class="switcher">
+          <div class="panel stack-sm">
+            <h3>길이 구간별 문장 수</h3>
+            <ul id="length-hist" class="bar-list"></ul>
+          </div>
+          <div class="stack-sm">
+            <h3>출처별 길이</h3>
+            <div class="panel table-panel">
+              <table class="data-table">
+                <caption class="sr-only">출처별 문장 수와 문자 길이 중앙값, 95백분위, 최대</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">출처</th>
+                    <th scope="col" class="num">문장 수</th>
+                    <th scope="col" class="num">중앙값</th>
+                    <th scope="col" class="num">95백분위</th>
+                    <th scope="col" class="num">최대</th>
+                  </tr>
+                </thead>
+                <tbody id="length-by-source"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="splits" class="stack section" aria-labelledby="splits-title">
+        <h2 id="splits-title">학습·검증·평가 분할</h2>
+        <p id="splits-lead" class="lead"></p>
+        <div class="panel table-panel">
+          <table class="data-table">
+            <caption class="sr-only">분할별 문장 수와 라벨 구성</caption>
+            <thead>
+              <tr>
+                <th scope="col">분할</th>
+                <th scope="col" class="num">문장 수</th>
+                <th scope="col" class="num">clean</th>
+                <th scope="col" class="num">harmful</th>
+                <th scope="col">harmful 비율</th>
+              </tr>
+            </thead>
+            <tbody id="split-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="annotations" class="stack section" aria-labelledby="annotations-title">
+        <h2 id="annotations-title">선택 주석 분포</h2>
+        <p class="lead">아래 값은 원천 데이터셋 이름이 접두사로 붙은 주석입니다. 원천마다 분류 체계가 달라 하나의 혐오 유형 체계로 합쳐 해석하지 않습니다.</p>
+        <div class="switcher">
+          <div class="panel stack-sm">
+            <h3>대상 주석</h3>
+            <ul id="target-bars" class="bar-list"></ul>
+          </div>
+          <div class="panel stack-sm">
+            <h3>표현 주석</h3>
+            <ul id="expression-bars" class="bar-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="methods" class="stack section" aria-labelledby="methods-title">
+        <h2 id="methods-title">결측 처리 방법 비교</h2>
+        <p class="lead">같은 최종 데이터에 두 방법을 적용해 실제로 남는 행을 비교했습니다. 행을 더 많이 지운다고 품질이 좋아지는 것은 아닙니다. 선택 필드까지 요구하면 그 주석을 제공하지 않는 원천의 행이 함께 빠집니다. 어느 방법도 라벨이나 주석을 최빈값 등으로 채워 새 정답을 만들지 않습니다.</p>
+        <div class="panel table-panel">
+          <table class="data-table">
+            <caption class="sr-only">결측 처리 방법별 시작, 남는, 삭제 행과 판단 이유</caption>
+            <thead>
+              <tr>
+                <th scope="col">방법</th>
+                <th scope="col">판단</th>
+                <th scope="col" class="num">시작 행</th>
+                <th scope="col" class="num">남는 행</th>
+                <th scope="col" class="num">삭제 행</th>
+                <th scope="col">남는 비율</th>
+                <th scope="col">이유</th>
+              </tr>
+            </thead>
+            <tbody id="method-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="runtime" class="stack section" aria-labelledby="runtime-title">
+        <h2 id="runtime-title">실행 환경: 현재 상태와 향후 적용</h2>
+        <div class="switcher">
+          <div class="panel stack-sm">
+            <h3>Hadoop</h3>
+            <dl id="runtime-hadoop" class="kv"></dl>
+          </div>
+          <div class="panel stack-sm">
+            <h3>Spark</h3>
+            <dl id="runtime-spark" class="kv"></dl>
+            <p class="muted small">아래 시간은 과거 실제 실행에서 기록된 값입니다. 이 집계 파일을 만들 때 다시 측정한 값이 아닙니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="notes" class="stack section" aria-labelledby="notes-title">
+        <h2 id="notes-title">참고 사항</h2>
+        <ul id="note-list" class="note-list"></ul>
+      </section>
+    </div>
+  </main>
+
+  <footer class="page page-footer">
+    <p class="muted small">이 화면은 집계 파일(report.json)만 읽습니다. 원문 문장, 행별 해시, 행별 주석은 포함하지 않습니다.</p>
+  </footer>
+</body>
+</html>
